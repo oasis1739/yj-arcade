@@ -1,0 +1,100 @@
+{
+  "queue": [
+    {
+      "id": "sudoku",
+      "title": "스도쿠",
+      "tags": ["puzzle"],
+      "players": 1,
+      "controls": "pointer",
+      "scoreOrder": "low",
+      "scoreLabel": "시간",
+      "rules": [
+        "4x4 / 6x6 / 9x9 중 하나를 고르고 빈 칸을 채운다",
+        "같은 줄·칸·박스에 같은 숫자가 오면 빨갛게 표시한다",
+        "힌트 버튼을 3번까지 써서 한 칸을 채울 수 있다"
+      ],
+      "win": "모든 칸을 규칙에 맞게 채우면 승리. 점수는 걸린 시간(초)",
+      "difficulty": "난이도 선택으로 조절. 9x9는 빈 칸 40개"
+    },
+    {
+      "id": "number-baseball",
+      "title": "숫자 야구",
+      "tags": ["puzzle"],
+      "players": 1,
+      "controls": "pointer",
+      "scoreOrder": "low",
+      "scoreLabel": "시도",
+      "rules": [
+        "서로 다른 3자리 숫자를 맞힌다",
+        "자리와 숫자가 맞으면 스트라이크, 숫자만 맞으면 볼",
+        "숫자 패드로 입력하고 지난 시도를 목록으로 보여준다"
+      ],
+      "win": "3스트라이크면 승리. 점수는 시도 횟수. 10번 넘기면 패배",
+      "difficulty": "3자리 고정"
+    },
+    {
+      "id": "baseball-battle",
+      "title": "야구 배틀왕",
+      "tags": ["sports", "versus"],
+      "players": 2,
+      "controls": "versus",
+      "scoreOrder": "high",
+      "scoreLabel": "점수",
+      "rules": [
+        "투수는 구종(직구·커브·체인지업)과 코스를 고르고 던진다",
+        "타자는 공이 존에 들어오는 타이밍에 A로 스윙한다",
+        "3이닝 공수교대. 1인 플레이면 상대는 AI"
+      ],
+      "win": "3이닝 후 점수가 높은 쪽 승리. onGameOver에 winner를 넣는다",
+      "difficulty": "이닝이 갈수록 구속이 빨라진다"
+    },
+    {
+      "id": "asteroid-dodge",
+      "title": "소행성 회피",
+      "tags": ["action"],
+      "players": 1,
+      "controls": "dpad",
+      "scoreOrder": "high",
+      "scoreLabel": "시간",
+      "rules": [
+        "아래쪽 우주선을 좌우로 움직인다",
+        "위에서 소행성이 떨어진다. 맞으면 끝",
+        "가끔 실드 아이템이 떨어져 1회 방어한다"
+      ],
+      "win": "생존 시간(초)이 점수",
+      "difficulty": "20초마다 낙하 속도와 밀도가 오른다"
+    },
+    {
+      "id": "brick-breaker",
+      "title": "벽돌깨기",
+      "tags": ["defense"],
+      "players": 1,
+      "controls": "pointer",
+      "scoreOrder": "high",
+      "scoreLabel": "점수",
+      "rules": [
+        "포인터를 끌어 패들을 움직인다",
+        "공을 튕겨 위쪽 벽돌을 부순다",
+        "단단한 벽돌은 두 번 맞아야 깨진다"
+      ],
+      "win": "벽돌을 다 깨면 다음 판. 공을 3번 놓치면 끝",
+      "difficulty": "판이 오를수록 공이 빨라지고 벽돌 줄이 늘어난다"
+    },
+    {
+      "id": "tank-duel",
+      "title": "탱크 대전",
+      "tags": ["versus"],
+      "players": 2,
+      "controls": "versus",
+      "scoreOrder": "high",
+      "scoreLabel": "승수",
+      "rules": [
+        "좌우 끝에 탱크가 하나씩. 가운데에 지형이 있다",
+        "위아래로 포각을 조절하고 A를 길게 눌러 파워를 모아 쏜다",
+        "포탄은 중력을 받아 포물선을 그린다"
+      ],
+      "win": "먼저 3번 맞히면 승리. onGameOver에 winner를 넣는다",
+      "difficulty": "매 라운드 지형이 바뀐다"
+    }
+  ]
+}

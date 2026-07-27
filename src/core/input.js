@@ -135,7 +135,7 @@ export function mergePads(...pads) {
 // ─────────────────────────────────────────────────────────────────────────────
 // DOM 결선. 순수 함수들을 실제 이벤트에 묶는다.
 // toLogical(clientX, clientY) → { x, y } 논리 좌표 변환기는 main.js가 준다.
-export function createInput({ canvas, toLogical, win = globalThis, nav = globalThis.navigator }) {
+export function createInput({ canvas, toLogical, win = globalThis, nav = globalThis.navigator, doc = globalThis.document }) {
   const down = new Set();
   let prevKeys = new Set();
   let gpPrev = [{ a: false, b: false }, { a: false, b: false }];
@@ -156,7 +156,21 @@ export function createInput({ canvas, toLogical, win = globalThis, nav = globalT
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
   };
   const onKeyUp = (e) => down.delete(e.code);
-  const onBlur = () => down.clear();
+
+  // 아이패드는 홈 제스처·알림·앱 전환으로 백그라운드에 자주 들어간다. pointercancel이
+  // 보통 따라오긴 하지만 "보통"만 믿기엔 얇다 — blur/hidden 전환에서 터치를 직접 지워
+  // 가상 패드가 눌린 채로 굳어 캐릭터가 혼자 움직이는 사고를 막는다.
+  const clearTouchesAndEdges = () => {
+    touches.clear();
+    touchHeld = { p1: { a: false }, p2: { a: false } };
+    pointer.down = false;
+    pointer.pressed = false;
+    pointer.released = false;
+    pointerDownEdge = false;
+    pointerUpEdge = false;
+  };
+  const onBlur = () => { down.clear(); clearTouchesAndEdges(); };
+  const onVisibility = () => { if (doc?.hidden) clearTouchesAndEdges(); };
 
   const onPointerDown = (e) => {
     const p = toLogical(e.clientX, e.clientY);
@@ -181,6 +195,7 @@ export function createInput({ canvas, toLogical, win = globalThis, nav = globalT
   win.addEventListener('keydown', onKeyDown);
   win.addEventListener('keyup', onKeyUp);
   win.addEventListener('blur', onBlur);
+  doc?.addEventListener?.('visibilitychange', onVisibility);
   canvas.addEventListener('pointerdown', onPointerDown);
   canvas.addEventListener('pointermove', onPointerMove);
   canvas.addEventListener('pointerup', onPointerUp);
@@ -228,6 +243,7 @@ export function createInput({ canvas, toLogical, win = globalThis, nav = globalT
       win.removeEventListener('keydown', onKeyDown);
       win.removeEventListener('keyup', onKeyUp);
       win.removeEventListener('blur', onBlur);
+      doc?.removeEventListener?.('visibilitychange', onVisibility);
       canvas.removeEventListener('pointerdown', onPointerDown);
       canvas.removeEventListener('pointermove', onPointerMove);
       canvas.removeEventListener('pointerup', onPointerUp);

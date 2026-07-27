@@ -32,10 +32,13 @@ const { games, errors } = collectGames(import.meta.glob('./games/*.js', { eager:
 if (errors.length) console.warn('[YJ 아케이드] 계약 위반 게임:', errors);
 
 const seed = (Date.now() ^ 0x5f3759df) >>> 0;
+// juice(파티클/흔들림)와 게임 rng가 같은 시드로 출발하면 두 스트림이 상관돼
+// 버린다 — 예를 들어 같은 프레임에 죽음 연출과 다음 스폰이 겹치는 게임이면
+// "터지는 패턴"이 매번 게임 전개와 눈에 띄게 얽혀 보인다. XOR로 갈라놓는다.
 const core = {
   draw: createDraw(ctx),
   audio: createAudio(),
-  juice: createJuice(makeRng(seed)),
+  juice: createJuice(makeRng((seed ^ 0x9e3779b9) >>> 0)),
   rng: makeRng(seed),
   input: createInput({
     canvas,
@@ -67,9 +70,20 @@ function handleTap() {
       mode = 'game';
       session.start(hit.game);
       core.audio.beep(660, 60);
+      // 이 탭이 메뉴 타일에서 게임 시작으로 모드를 바꿨다. update()가 이어서
+      // session.update(dt)를 부르므로, pressed를 안 지우면 방금 그 탭이 새
+      // 게임의 0프레임에 "유령 탭"으로 들어가버린다(핸들러가 같은 프레임 안에서
+      // 순서대로 실행되기 때문 — 다음 프레임까지 기다리지 않는다).
+      p.pressed = false;
+      p.released = false;
     }
   } else {
-    session.tap(p.x, p.y);
+    const action = session.tap(p.x, p.y);
+    // "다시하기"/"계속하기"도 같은 프레임에 새/재개된 게임의 update로 이어진다.
+    if (action === 'restart' || action === 'resume') {
+      p.pressed = false;
+      p.released = false;
+    }
   }
 }
 

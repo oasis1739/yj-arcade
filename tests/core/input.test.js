@@ -1,8 +1,25 @@
 import { describe, it, expect } from 'vitest';
 import {
   emptyPad, KEYMAP_P1, KEYMAP_P2, padFromKeys, padFromGamepad,
-  padLayout, padFromTouches, mergePads,
+  padLayout, padFromTouches, mergePads, createInput,
 } from '../../src/core/input.js';
+
+// addEventListener/removeEventListener/dispatch만 있으면 되는 최소 가짜
+// EventTarget. jsdom 없이(현재 vitest는 node 환경) createInput의 DOM 결선을
+// 테스트하기 위한 것.
+function fakeTarget() {
+  const listeners = new Map();
+  return {
+    addEventListener(type, fn) {
+      if (!listeners.has(type)) listeners.set(type, new Set());
+      listeners.get(type).add(fn);
+    },
+    removeEventListener(type, fn) { listeners.get(type)?.delete(fn); },
+    dispatch(type, ev = {}) {
+      for (const fn of [...(listeners.get(type) ?? [])]) fn(ev);
+    },
+  };
+}
 
 describe('emptyPad', () => {
   it('중립 상태다', () => {
@@ -117,6 +134,67 @@ describe('padFromTouches', () => {
   it('존 밖 터치는 무시한다', () => {
     const res = padFromTouches([{ x: 480, y: 40 }], layout, noHeld);
     expect(res.p1).toEqual(emptyPad());
+  });
+});
+
+describe('createInput — 백그라운드 전환 시 터치 정리', () => {
+  function setup() {
+    const win = fakeTarget();
+    const canvas = fakeTarget();
+    canvas.setPointerCapture = () => {};
+    const doc = fakeTarget();
+    doc.hidden = false;
+    const input = createInput({
+      canvas, win, doc,
+      toLogical: (x, y) => ({ x, y }),
+      nav: { getGamepads: () => [] },
+    });
+    const down = (id = 1, x = 100, y = 100) => {
+      canvas.dispatch('pointerdown', { pointerId: id, clientX: x, clientY: y, preventDefault() {} });
+    };
+    return { win, canvas, doc, input, down };
+  }
+
+  it('blur에서 눌려있던 터치와 pressed/down 엣지를 지운다', () => {
+    const { win, input, down } = setup();
+    down();
+    input.update();
+    expect(input.pointer.down).toBe(true);
+    expect(input.pointer.pressed).toBe(true);
+
+    win.dispatch('blur');
+    input.update();
+
+    expect(input.pointer.down).toBe(false);
+    expect(input.pointer.pressed).toBe(false);
+    expect(input.pointer.released).toBe(false);
+  });
+
+  it('탭이 백그라운드로 가면(visibilitychange, hidden) 터치를 지운다', () => {
+    const { doc, input, down } = setup();
+    down();
+    input.update();
+    expect(input.pointer.down).toBe(true);
+
+    doc.hidden = true;
+    doc.dispatch('visibilitychange');
+    input.update();
+
+    expect(input.pointer.down).toBe(false);
+  });
+
+  it('다시 보여도(hidden=false) 이전 터치가 되살아나지 않는다', () => {
+    const { doc, input, down } = setup();
+    down();
+    input.update();
+
+    doc.hidden = true;
+    doc.dispatch('visibilitychange');
+    doc.hidden = false;
+    doc.dispatch('visibilitychange');
+    input.update();
+
+    expect(input.pointer.down).toBe(false);
   });
 });
 

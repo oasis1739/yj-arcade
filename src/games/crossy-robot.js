@@ -1,14 +1,16 @@
 import { PALETTE } from '../core/draw.js';
 
 const SCROLL_AT = 6;   // 이 레인 위로 올라가면 판을 한 칸 내린다
+const RAMP_LANES = 60; // 이만큼 올라가면 최고 난이도에 도달 (그 이후는 상한 유지)
 
 // ── 순수 규칙 ────────────────────────────────────────────────────────────────
 export function makeLane(index, rng) {
   if (index % 4 === 0) return { type: 'safe', dir: 1, speed: 0, cars: [] };
 
+  const t = Math.min(index / RAMP_LANES, 1);    // 0(시작)..1(최고 난이도), 상한 있음
   const dir = rng.next() < 0.5 ? -1 : 1;
-  const speed = 1.4 + rng.next() * 2.6;         // 초당 칸 수
-  const count = 2 + rng.int(2);
+  const speed = 1.4 + rng.next() * 2.6 + t * 2.4;         // 초당 칸 수, 갈수록 빨라진다
+  const count = 2 + rng.int(2) + Math.floor(t * 2);       // 갈수록 차가 조밀해진다
   const cars = [];
   for (let i = 0; i < count; i++) {
     cars.push({ x: i * (15 / count) + rng.next() * 2, w: 2 + rng.int(2) });
@@ -158,8 +160,15 @@ export default {
     for (let i = 0; i < s.lanes.length; i++) {
       const lane = s.lanes[i];
       const y = BOTTOM - i * LANE_H;
-      d.rect(OX, y - LANE_H + 6, COLS * CELL, LANE_H - 8,
-        lane.type === 'safe' ? PALETTE.panel : PALETTE.bg);
+      // 안전지대는 밝은 패널색, 도로는 배경보다 밝은 dim톤 아스팔트로 — 어느 쪽도
+      // clear()가 채운 PALETTE.bg와 같은 색이 되면 안 된다 (레인 경계가 사라짐).
+      if (lane.type === 'safe') {
+        d.rect(OX, y - LANE_H + 6, COLS * CELL, LANE_H - 8, PALETTE.panel);
+      } else {
+        d.rect(OX, y - LANE_H + 6, COLS * CELL, LANE_H - 8, PALETTE.dim, { alpha: 0.55 });
+        d.line(OX, y - LANE_H / 2, OX + COLS * CELL, y - LANE_H / 2, PALETTE.dim,
+          { alpha: 0.4, width: 2 });
+      }
 
       if (lane.type === 'road') {
         for (const car of lane.cars) {

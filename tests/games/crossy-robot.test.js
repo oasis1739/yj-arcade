@@ -120,8 +120,24 @@ describe('플레이어 이동', () => {
     const r = rng();
     for (let i = 0; i < 9; i++) movePlayer(s, 0, 1, r);
     expect(s.lanes.length).toBe(11);          // 길이는 유지
-    expect(s.player.lane).toBeLessThan(11);   // 화면 안에 남는다
+    expect(s.player.lane).toBeLessThanOrEqual(6);   // SCROLL_AT을 넘지 않는다
     expect(s.crossed).toBe(9);
+  });
+});
+
+describe('난이도 램프', () => {
+  it('레인 인덱스가 커질수록 도로가 더 빠르고 조밀해진다', () => {
+    const low = makeLane(1, makeRng(7));
+    const high = makeLane(401, makeRng(7));   // 같은 시드 → 랜덤 성분은 동일, 인덱스만 다름
+    expect(high.speed).toBeGreaterThan(low.speed);
+    expect(high.cars.length).toBeGreaterThanOrEqual(low.cars.length);
+  });
+
+  it('난이도는 상한선 이후로 더 이상 오르지 않는다 (사람이 할 만해야 한다)', () => {
+    const capped = makeLane(401, makeRng(7));
+    const beyondCap = makeLane(4001, makeRng(7));
+    expect(beyondCap.speed).toBeCloseTo(capped.speed);
+    expect(beyondCap.cars.length).toBe(capped.cars.length);
   });
 });
 

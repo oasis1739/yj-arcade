@@ -115,6 +115,18 @@ describe('플레이어 이동', () => {
     expect(movePlayer(s, 0, -1, rng()).moved).toBe(false);
   });
 
+  it('위아래로 왔다갔다 해도 최고 도달 깊이만큼만 점수가 오른다 (파밍 방지)', () => {
+    const s = createCrossyState({ cols: 15, lanes: 11, rng: rng() });
+    const r = rng();
+    movePlayer(s, 0, 1, r);   // depth 1, crossed 1
+    movePlayer(s, 0, 1, r);   // depth 2, crossed 2
+    movePlayer(s, 0, -1, r);  // depth 1, crossed는 그대로 2
+    movePlayer(s, 0, 1, r);   // depth 2, 이미 도달한 깊이라 crossed는 그대로
+    movePlayer(s, 0, -1, r);
+    movePlayer(s, 0, 1, r);
+    expect(s.crossed).toBe(2);
+  });
+
   it('위쪽에 다다르면 판이 스크롤되고 새 레인이 생긴다', () => {
     const s = createCrossyState({ cols: 15, lanes: 11, rng: rng() });
     const r = rng();

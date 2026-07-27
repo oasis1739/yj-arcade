@@ -27,7 +27,8 @@ export function createCrossyState({ cols = 15, lanes = 11, rng }) {
     lanes: list,
     nextIndex: lanes,
     player: { col: Math.floor(cols / 2), lane: 0 },
-    crossed: 0,
+    depth: 0,     // 절대 진행 깊이(위 +1 / 아래 -1) — 판 스크롤과 무관하게 누적
+    crossed: 0,   // 지금까지 도달한 "최고" 깊이. 이게 점수다.
     dead: false,
   };
 }
@@ -61,10 +62,16 @@ export function movePlayer(state, dcol, dlane, rng) {
   state.player.col = col;
   state.player.lane = lane;
 
+  // 점수는 "지금까지 실제로 도달한 최고 깊이"다. 위아래로 왔다 갔다 해도
+  // depth는 매번 오르내리지만 crossed는 최고점 갱신될 때만 올라간다 — 제자리
+  // 왕복으로 점수를 파밍할 수 없게 한다("거리"라는 라벨과 맞는 동작).
   let scored = false;
-  if (dlane > 0) {
-    state.crossed += 1;
-    scored = true;
+  if (dlane !== 0) {
+    state.depth += dlane;
+    if (state.depth > state.crossed) {
+      state.crossed = state.depth;
+      scored = true;
+    }
   }
 
   // 위쪽에 다다르면 판을 한 칸 내리고 새 레인을 위에 붙인다.

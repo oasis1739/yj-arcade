@@ -1,3 +1,8 @@
+// 논리 해상도. 셸의 뷰포트(960x640)와 같은 값이지만 core는 shell을 몰라야
+// 하므로(계층 방향) shell/viewport.js를 import하지 않고 여기서 다시 정의한다.
+const LOGICAL_W = 960;
+const LOGICAL_H = 640;
+
 // 네온 팔레트와 그리기 헬퍼. 게임은 색을 직접 하드코딩하지 않고 PALETTE만 쓴다.
 export const PALETTE = {
   bg: '#05060d',
@@ -29,7 +34,12 @@ export function createDraw(ctx) {
       ctx.globalAlpha = 1;
       ctx.shadowBlur = 0;
       ctx.fillStyle = color;
-      ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+      // ctx.canvas.width/height는 물리(백킹) 픽셀이지만, 이 함수는 이미 논리
+      // 좌표계 변환이 걸린 뒤 불린다(main.js가 setTransform으로 스케일/오프셋을
+      // 적용한 상태). 물리 크기로 채우면 고DPR 아이패드에서 실제 필요한 면적의
+      // 몇 배를 매 프레임 다시 칠하게 된다 — 지금까지는 960x640 클립으로
+      // 가려졌을 뿐 낭비였다.
+      ctx.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
       ctx.restore();
     },
 

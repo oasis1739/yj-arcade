@@ -38,6 +38,30 @@ describe('PWA', () => {
     expect(sw).toContain('skipWaiting');
   });
 
+  it('서비스워커가 내비게이션 요청에 네트워크 우선 전략을 쓴다', () => {
+    const sw = readPublic('sw.js').toString();
+    expect(sw).toContain("req.mode === 'navigate'");
+    // 내비게이션 분기는 캐시를 먼저 보지 않고 fetch(req)를 먼저 시도해야 한다.
+    const navBranchStart = sw.indexOf("req.mode === 'navigate'");
+    const navBranch = sw.slice(navBranchStart, navBranchStart + 300);
+    expect(navBranch).toContain('fetch(req)');
+  });
+
+  it('오프라인 시 캐시된 index.html로 폴백한다', () => {
+    const sw = readPublic('sw.js').toString();
+    expect(sw).toContain(".catch(() => caches.match('./index.html'))");
+  });
+
+  it('설치 시 프리캐시와 activate 시 구버전 캐시 정리를 유지한다', () => {
+    const sw = readPublic('sw.js').toString();
+    expect(sw).toMatch(/addEventListener\('install'/);
+    expect(sw).toContain('caches.open(CACHE).then((c) => c.addAll(CORE))');
+    expect(sw).toMatch(/addEventListener\('activate'/);
+    expect(sw).toContain('caches.keys()');
+    expect(sw).toContain('k !== CACHE');
+    expect(sw).toContain('caches.delete(k)');
+  });
+
   it('main.js가 서비스워커를 등록한다', () => {
     expect(read('src/main.js').toString()).toContain("register('./sw.js')");
   });

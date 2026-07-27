@@ -45,12 +45,37 @@ describe('createDraw', () => {
     expect(ctx.font).toContain('24px');
   });
 
+  it('roundRect는 경로를 그린다', () => {
+    const ctx = stubCtx();
+    createDraw(ctx).roundRect(10, 20, 30, 40, 5, PALETTE.magenta);
+    expect(ctx.calls).toContainEqual(['moveTo', 15, 20]);
+    const arcToCalls = ctx.calls.filter((c) => c[0] === 'arcTo');
+    expect(arcToCalls).toHaveLength(4);
+    expect(callNames(ctx)).toContain('fill');
+  });
+
+  it('roundRect fill:false면 stroke를 호출한다', () => {
+    const ctx = stubCtx();
+    createDraw(ctx).roundRect(10, 20, 30, 40, 5, PALETTE.magenta, { fill: false });
+    expect(callNames(ctx)).toContain('stroke');
+    expect(callNames(ctx)).not.toContain('fill');
+  });
+
   it('glow 옵션은 shadowBlur를 세우고 save/restore로 감싼다', () => {
     const ctx = stubCtx();
     createDraw(ctx).circle(10, 10, 5, PALETTE.cyan, { glow: 14 });
     const names = callNames(ctx);
     expect(names[0]).toBe('save');
     expect(names[names.length - 1]).toBe('restore');
+    expect(ctx.shadowBlur).toBe(14);
+    expect(ctx.shadowColor).toBe(PALETTE.cyan);
+  });
+
+  it('glow 옵션 없으면 shadowBlur는 0이고 shadowColor는 transparent다', () => {
+    const ctx = stubCtx();
+    createDraw(ctx).circle(10, 10, 5, PALETTE.cyan);
+    expect(ctx.shadowBlur).toBe(0);
+    expect(ctx.shadowColor).toBe('transparent');
   });
 
   it('모든 그리기는 상태를 save/restore로 복원한다', () => {

@@ -58,4 +58,49 @@ describe('createRecords', () => {
     expect(r.submit('a', NaN)).toEqual({ best: null, isNew: false });
     expect(r.best('a')).toBe(null);
   });
+
+  it('NaN은 플레이 횟수를 증가시키지 않는다', () => {
+    const r = mk();
+    r.submit('a', NaN);
+    expect(r.plays('a')).toBe(0);
+    expect(r.best('a')).toBe(null);
+  });
+
+  it('NaN은 기존 기록을 손상시키지 않는다', () => {
+    const r = mk();
+    r.submit('a', 10);
+    expect(r.plays('a')).toBe(1);
+    expect(r.best('a')).toBe(10);
+
+    const result = r.submit('a', NaN);
+    expect(result).toEqual({ best: 10, isNew: false });
+    expect(r.plays('a')).toBe(1);
+    expect(r.best('a')).toBe(10);
+  });
+
+  it('Infinity는 플레이 횟수를 증가시키지 않는다', () => {
+    const r = mk();
+    r.submit('b', Infinity);
+    expect(r.plays('b')).toBe(0);
+    expect(r.best('b')).toBe(null);
+  });
+
+  it('Infinity는 기존 기록을 손상시키지 않는다', () => {
+    const r = mk();
+    r.submit('b', 20);
+    expect(r.plays('b')).toBe(1);
+    expect(r.best('b')).toBe(20);
+
+    const result = r.submit('b', Infinity);
+    expect(result).toEqual({ best: 20, isNew: false });
+    expect(r.plays('b')).toBe(1);
+    expect(r.best('b')).toBe(20);
+  });
+
+  it('-Infinity는 플레이 횟수를 증가시키지 않는다', () => {
+    const r = mk();
+    r.submit('c', -Infinity);
+    expect(r.plays('c')).toBe(0);
+    expect(r.best('c')).toBe(null);
+  });
 });

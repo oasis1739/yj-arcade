@@ -1,5 +1,5 @@
 import { createLoop } from './core/loop.js';
-import { createDraw } from './core/draw.js';
+import { createDraw, PALETTE } from './core/draw.js';
 import { createAudio } from './core/audio.js';
 import { createJuice } from './core/juice.js';
 import { makeRng } from './core/rng.js';
@@ -14,8 +14,8 @@ import { computeFit, toLogicalFactory, LOGICAL_W, LOGICAL_H } from './shell/view
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d', { alpha: false });
 
-let fit = computeFit(innerWidth, innerHeight, devicePixelRatio || 1);
-let toLogical = toLogicalFactory(fit);
+let fit;
+let toLogical;
 
 function resize() {
   fit = computeFit(innerWidth, innerHeight, devicePixelRatio || 1);
@@ -83,16 +83,21 @@ const loop = createLoop({
   },
   render: () => {
     // 물리 캔버스를 지우고 논리 좌표계로 들어간다.
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.setTransform(fit.scale, 0, 0, fit.scale, fit.offsetX, fit.offsetY);
-    ctx.beginPath();
-    ctx.rect(0, 0, LOGICAL_W, LOGICAL_H);
-    ctx.clip();
+    ctx.save();
+    try {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = PALETTE.bg;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.setTransform(fit.scale, 0, 0, fit.scale, fit.offsetX, fit.offsetY);
+      ctx.beginPath();
+      ctx.rect(0, 0, LOGICAL_W, LOGICAL_H);
+      ctx.clip();
 
-    if (mode === 'game') session.render(ctx);
-    else menu.render(ctx);
+      if (mode === 'game') session.render(ctx);
+      else menu.render(ctx);
+    } finally {
+      ctx.restore();
+    }
   },
 });
 

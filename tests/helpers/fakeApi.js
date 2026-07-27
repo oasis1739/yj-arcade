@@ -9,6 +9,16 @@ export function createFakeApi(ctx, { seed = 1 } = {}) {
   const events = { scores: [], gameOvers: [], illegal: [] };
   let rendering = false;
 
+  // 실제 셸(src/shell/session.js)이 게임에 주는 것과 같은 좁은 juice 파사드다.
+  // update()/draw()/reset()은 셸만 부른다 — 여기서도 노출하지 않아야, 게임이
+  // 그 메서드들에 실수로 기대는 버그를 이 하네스가 (셸처럼) 잡아낸다.
+  const fullJuice = createJuice(makeRng(seed));
+  const juice = {
+    shake: (...a) => fullJuice.shake(...a),
+    burst: (...a) => fullJuice.burst(...a),
+    hitstop: (...a) => fullJuice.hitstop(...a),
+  };
+
   const api = {
     w: 960,
     h: 640,
@@ -19,7 +29,7 @@ export function createFakeApi(ctx, { seed = 1 } = {}) {
     },
     draw: createDraw(ctx),
     audio: createAudio(null),       // AudioContext 없는 환경 → 전부 무해하게 무시
-    juice: createJuice(makeRng(seed)),
+    juice,
     rng: makeRng(seed),
     onScore(n) {
       if (rendering) events.illegal.push('render 중 onScore 호출');

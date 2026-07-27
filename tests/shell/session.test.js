@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createSession, sessionButtons, hitRect } from '../../src/shell/session.js';
 import { createRecords } from '../../src/shell/records.js';
 import { createStorage } from '../../src/core/storage.js';
@@ -6,7 +6,7 @@ import { createDraw } from '../../src/core/draw.js';
 import { createAudio } from '../../src/core/audio.js';
 import { createJuice } from '../../src/core/juice.js';
 import { makeRng } from '../../src/core/rng.js';
-import { emptyPad } from '../../src/core/input.js';
+import { emptyPad, padLayout } from '../../src/core/input.js';
 import { stubCtx } from '../helpers/stubCtx.js';
 
 function mem() {
@@ -14,14 +14,18 @@ function mem() {
   return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), removeItem: (k) => map.delete(k) };
 }
 
+// 실제 core.input처럼 setControls로 받은 모드에 맞춰 layout()이 살아 움직이는
+// 가짜. 오버레이 그리기 테스트(터치 패드)에 필요하다.
 function makeCore(ctx) {
   const controlsSeen = [];
+  let controls = 'pointer';
   return {
     controlsSeen,
     input: {
       p1: emptyPad(), p2: emptyPad(),
       pointer: { x: 0, y: 0, down: false, pressed: false, released: false },
-      setControls: (m) => controlsSeen.push(m),
+      setControls: (m) => { controlsSeen.push(m); controls = m; },
+      layout: () => padLayout(960, 640, controls),
     },
     draw: createDraw(ctx),
     audio: createAudio(null),
@@ -294,5 +298,141 @@ describe('createSession', () => {
     expect(session.score()).toBe(0);
     expect(session.result()).toBe(null);
     expect(session.tap(480, 320)).toBe(null);
+  });
+
+  it('game over에서 승자가 있으면 승리 문구를 그린다', () => {
+    const ctx = stubCtx();
+    const { session } = mkSession(ctx);
+    const g = fakeGame({
+      players: 2,
+      tags: ['action', 'versus'],
+      update() { this.api.onGameOver({ score: 10, winner: 2 }); },
+    });
+    session.start(g);
+    session.update(1 / 60);
+    expect(session.state()).toBe('over');
+    expect(session.result().winner).toBe(2);
+
+    session.render(ctx);
+
+    const texts = ctx.calls.filter((c) => c[0] === 'fillText').map((c) => c[1]);
+    expect(texts).toContain('2P 승리!');
+    expect(texts).not.toContain('새 최고기록!');
+  });
+
+  it('승자가 없으면 승리 문구를 그리지 않는다', () => {
+    const ctx = stubCtx();
+    const { session } = mkSession(ctx);
+    const g = fakeGame({ update() { this.api.onGameOver({ score: 3 }); } });
+    session.start(g);
+    session.update(1 / 60);
+    session.render(ctx);
+    const texts = ctx.calls.filter((c) => c[0] === 'fillText').map((c) => c[1]);
+    expect(texts.some((t) => String(t).includes('승리'))).toBe(false);
+  });
+});
+
+describe('createSession — 터치 오버레이', () => {
+  it('pointer 컨트롤은 오버레이를 그리지 않는다', () => {
+    const ctx = stubCtx();
+    const { session } = mkSession(ctx);
+    session.start(fakeGame({ controls: 'pointer' }));
+    session.render(ctx);
+    const arcs = ctx.calls.filter((c) => c[0] === 'arc');
+    expect(arcs.length).toBe(0);
+  });
+
+  it('dpad 컨트롤은 dpad 존을 그린다', () => {
+    const ctx = stubCtx();
+    const { session } = mkSession(ctx);
+    session.start(fakeGame({ controls: 'dpad' }));
+    session.render(ctx);
+    const arcs = ctx.calls.filter((c) => c[0] === 'arc');
+    expect(arcs.length).toBeGreaterThan(0);
+    const texts = ctx.calls.filter((c) => c[0] === 'fillText').map((c) => c[1]);
+    expect(texts).not.toContain('A');   // dpad 단독 모드엔 A 버튼이 없다
+  });
+
+  it('dpad+a 컨트롤은 dpad와 A 버튼을 그린다', () => {
+    const ctx = stubCtx();
+    const { session } = mkSession(ctx);
+    session.start(fakeGame({ controls: 'dpad+a' }));
+    session.render(ctx);
+    const arcs = ctx.calls.filter((c) => c[0] === 'arc');
+    expect(arcs.length).toBeGreaterThan(0);
+    const texts = ctx.calls.filter((c) => c[0] === 'fillText').map((c) => c[1]);
+    expect(texts).toContain('A');
+  });
+
+  it('versus 컨트롤은 두 플레이어 존을 모두 그린다', () => {
+    const ctx = stubCtx();
+    const { session } = mkSession(ctx);
+    session.start(fakeGame({ controls: 'versus', players: 2, tags: ['action', 'versus'] }));
+    session.render(ctx);
+    const texts = ctx.calls.filter((c) => c[0] === 'fillText').map((c) => c[1]);
+    expect(texts).toContain('1P');
+    expect(texts).toContain('2P');
+    expect(texts.filter((t) => t === 'A').length).toBe(2);
+  });
+
+  it('오버레이의 노브 위치는 현재 입력 상태를 그대로 읽는다 (update 없이 두 번 그려도 같다)', () => {
+    const ctx = stubCtx();
+    const { session, core } = mkSession(ctx);
+    session.start(fakeGame({ controls: 'dpad' }));
+    core.input.p1.x = 0.6;
+    core.input.p1.y = -0.3;
+
+    session.render(ctx);
+    const first = ctx.calls.filter((c) => c[0] === 'arc').map((c) => JSON.stringify(c));
+    const mark = ctx.calls.length;
+    session.render(ctx);
+    const second = ctx.calls.slice(mark).filter((c) => c[0] === 'arc').map((c) => JSON.stringify(c));
+
+    expect(second).toEqual(first);
+  });
+});
+
+describe('createSession — 게임 예외로부터 셸을 보호한다', () => {
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  it('update가 던지면 로그를 남기고 메뉴로 돌아가며 전파하지 않는다', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    let exited = false;
+    const { session } = mkSession(stubCtx(), () => { exited = true; });
+    const g = fakeGame({ update() { throw new Error('boom'); } });
+    session.start(g);
+
+    expect(() => session.update(1 / 60)).not.toThrow();
+
+    expect(session.state()).toBe('idle');
+    expect(session.current()).toBe(null);
+    expect(exited).toBe(true);
+    expect(console.error).toHaveBeenCalled();
+    expect(session.lastError()).toBeTruthy();
+  });
+
+  it('render가 던지면 로그를 남기고 메뉴로 돌아가며 전파하지 않는다', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    let exited = false;
+    const { session } = mkSession(stubCtx(), () => { exited = true; });
+    const g = fakeGame({ render() { throw new Error('boom'); } });
+    session.start(g);
+
+    expect(() => session.render(stubCtx())).not.toThrow();
+
+    expect(session.state()).toBe('idle');
+    expect(session.current()).toBe(null);
+    expect(exited).toBe(true);
+    expect(console.error).toHaveBeenCalled();
+  });
+
+  it('render가 던져도 그 다음 render 호출은 아무 것도 안 그리고 조용히 끝난다', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const ctx = stubCtx();
+    const { session } = mkSession(ctx);
+    session.start(fakeGame({ render() { throw new Error('boom'); } }));
+    session.render(ctx);
+    expect(() => session.render(ctx)).not.toThrow();
+    expect(session.state()).toBe('idle');
   });
 });

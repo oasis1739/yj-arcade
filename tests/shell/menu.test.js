@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { menuLayout, tabsLayout, createMenu, PER_PAGE } from '../../src/shell/menu.js';
 import { createRecords } from '../../src/shell/records.js';
 import { createStorage } from '../../src/core/storage.js';
@@ -140,5 +140,29 @@ describe('createMenu', () => {
     createMenu({ games, records, draw: createDraw(ctx) }).render(ctx);
     const texts = ctx.calls.filter((c) => c[0] === 'fillText').map((c) => String(c[1]));
     expect(texts.some((t) => t.includes('123'))).toBe(true);
+  });
+
+  describe('망가진 게임 아이콘으로부터 메뉴를 보호한다', () => {
+    afterEach(() => { vi.restoreAllMocks(); });
+
+    it('한 게임의 icon()이 던져도 나머지 타일은 그대로 그려진다', () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      const broken = g('broken', ['action'], { icon() { throw new Error('boom'); } });
+      const list = [broken, g('ok1', ['action']), g('ok2', ['action'])];
+      const ctx = stubCtx();
+
+      expect(() => {
+        createMenu({ games: list, records: mkRecords(), draw: createDraw(ctx) }).render(ctx);
+      }).not.toThrow();
+
+      const texts = ctx.calls.filter((c) => c[0] === 'fillText').map((c) => c[1]);
+      expect(texts).toContain('ok1');
+      expect(texts).toContain('ok2');
+      expect(console.error).toHaveBeenCalled();
+
+      const names = ctx.calls.map((c) => c[0]);
+      expect(names.filter((n) => n === 'save').length)
+        .toBe(names.filter((n) => n === 'restore').length);
+    });
   });
 });

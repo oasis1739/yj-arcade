@@ -116,10 +116,18 @@ export function createMenu({ games, records, draw }) {
         d.roundRect(tile.x, tile.y, tile.w, tile.h, 18, game.color, { fill: false, width: 2, glow: 12 });
 
         // 게임이 자기 아이콘을 그린다. 좌표계를 타일 안으로 옮겨준다.
+        // 게임 하나의 icon()이 죽어도(예: dispose된 게임의 필드를 읽는 버그)
+        // 메뉴 전체가 못 그려지면 안 되니, 실패하면 자리표시 도형으로 대신한다.
         const iconSize = 96;
         ctx.save();
         ctx.translate(tile.x + tile.w / 2 - iconSize / 2, tile.y + 26);
-        game.icon(ctx, iconSize);
+        try {
+          game.icon(ctx, iconSize);
+        } catch (err) {
+          console.error(`[YJ 아케이드] ${game.id ?? '?'} 아이콘이 깨졌어요:`, err);
+          d.circle(iconSize / 2, iconSize / 2, iconSize / 3, PALETTE.dim);
+          d.text('?', iconSize / 2, iconSize / 2, { size: 32, bold: true, color: PALETTE.white });
+        }
         ctx.restore();
 
         d.text(game.title, tile.x + tile.w / 2, tile.y + 152, { size: 20, bold: true, color: PALETTE.white });

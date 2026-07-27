@@ -19,6 +19,10 @@ export function hitRect(r, x, y) {
   return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
 }
 
+// 게임 코드가 던지면 애 손에 죽은 화면을 쥐어줄 수 없다 — 아이패드 풀스크린
+// PWA에서는 새로고침도 못 한다. 이 문구는 콘솔 로그에 붙어 원인을 남긴다.
+const CRASH_MESSAGE = '이 게임에 문제가 생겼어요';
+
 // 게임 하나의 수명을 관리한다. 셸에서 게임으로 들어가는 유일한 문.
 export function createSession({ core, records, onExit }) {
   const B = sessionButtons(W, H);
@@ -26,6 +30,7 @@ export function createSession({ core, records, onExit }) {
   let state = 'idle';
   let score = 0;
   let result = null;
+  let lastError = null;
 
   function makeApi() {
     return {
@@ -34,7 +39,15 @@ export function createSession({ core, records, onExit }) {
       input: core.input,
       draw: core.draw,
       audio: core.audio,
-      juice: core.juice,
+      // core.juice 전체가 아니라 계약이 문서화한 세 메서드만 준다. 셸이 juice의
+      // 수명(reset/update/draw)을 쥐고 있으므로, 게임이 실수로 update()/draw()/
+      // reset()을 불러버리면 파티클이 두 배로 흐르거나 히트스톱이 반토막나거나
+      // 셸 상태가 통째로 지워진다 — 계약 테스트는 이걸 잡아낼 수 없다.
+      juice: {
+        shake: (...a) => core.juice.shake(...a),
+        burst: (...a) => core.juice.burst(...a),
+        hitstop: (...a) => core.juice.hitstop(...a),
+      },
       rng: core.rng,
       onScore(n) { if (Number.isFinite(n)) score = n; },
       onGameOver(res = {}) {
@@ -52,10 +65,30 @@ export function createSession({ core, records, onExit }) {
     game = g;
     score = 0;
     result = null;
+    lastError = null;
     state = 'playing';
     core.juice.reset();
     core.input.setControls?.(g.controls ?? 'pointer');
     g.init(makeApi());
+  }
+
+  // 일시정지/오버 화면의 "메뉴로" 버튼과 정확히 같은 종료 경로. 게임이 터졌을
+  // 때도 셸 상태가 갈라지지 않도록 이걸 재사용한다.
+  function exitToMenu() {
+    if (game) {
+      try { game.dispose(); } catch { /* 게임이 이미 망가졌어도 dispose 실패는 무시 */ }
+    }
+    game = null;
+    state = 'idle';
+    score = 0;
+    result = null;
+    onExit();
+  }
+
+  function crash(err) {
+    lastError = CRASH_MESSAGE;
+    console.error(`[YJ 아케이드] ${CRASH_MESSAGE}:`, err);
+    exitToMenu();
   }
 
   return {
@@ -76,12 +109,17 @@ export function createSession({ core, records, onExit }) {
     score: () => score,
     result: () => result,
     current: () => game,
+    lastError: () => lastError,
 
     update(dt) {
       core.juice.update(dt);
       if (state !== 'playing') return;
       if (core.juice.frozen()) return;
-      game.update(dt);
+      try {
+        game.update(dt);
+      } catch (err) {
+        crash(err);
+      }
     },
 
     render(ctx) {
@@ -91,9 +129,24 @@ export function createSession({ core, records, onExit }) {
       const off = core.juice.offset();
       ctx.save();
       ctx.translate(off.x, off.y);
-      game.render(ctx);
-      ctx.restore();
+      let renderError = null;
+      try {
+        game.render(ctx);
+      } catch (err) {
+        renderError = err;
+      } finally {
+        ctx.restore();
+      }
+      if (renderError) {
+        // game.render가 어디까지 그리다 던졌는지 알 수 없으니, 화면을 지우고
+        // 메뉴로 돌아가는 편이 이상한 잔상을 그대로 보여주는 것보다 낫다.
+        crash(renderError);
+        d.clear();
+        return;
+      }
       core.juice.draw(ctx);
+
+      drawTouchOverlay(d, core.input);
 
       // HUD
       d.text(`${game.scoreLabel} ${score}`, 20, 34, { size: 24, align: 'left', color: PALETTE.white, glow: 6 });
@@ -109,7 +162,9 @@ export function createSession({ core, records, onExit }) {
         } else {
           d.text('게임 끝', W / 2, H / 2 - 150, { size: 44, bold: true, color: PALETTE.magenta, glow: 16 });
           d.text(`${game.scoreLabel} ${score}`, W / 2, H / 2 - 92, { size: 30, color: PALETTE.white });
-          if (result?.isNew) {
+          if (result?.winner === 1 || result?.winner === 2) {
+            d.text(`${result.winner}P 승리!`, W / 2, H / 2 - 50, { size: 26, bold: true, color: PALETTE.yellow, glow: 12 });
+          } else if (result?.isNew) {
             d.text('새 최고기록!', W / 2, H / 2 - 50, { size: 24, bold: true, color: PALETTE.yellow, glow: 12 });
           } else if (result?.best !== null && result?.best !== undefined) {
             d.text(`최고 ${result.best}`, W / 2, H / 2 - 50, { size: 22, color: PALETTE.dim });
@@ -137,10 +192,7 @@ export function createSession({ core, records, onExit }) {
         return 'restart';
       }
       if ((state === 'paused' || state === 'over') && hitRect(B.menu, x, y)) {
-        game.dispose();
-        game = null;
-        state = 'idle';
-        onExit();
+        exitToMenu();
         return 'menu';
       }
       return null;
@@ -152,4 +204,38 @@ function button(d, r, label, color) {
   d.roundRect(r.x, r.y, r.w, r.h, 14, color, { alpha: 0.16 });
   d.roundRect(r.x, r.y, r.w, r.h, 14, color, { fill: false, width: 2, glow: 10 });
   d.text(label, r.x + r.w / 2, r.y + r.h / 2, { size: 24, bold: true, color });
+}
+
+// 가상 터치 패드 오버레이. input.padLayout()이 정의한 존만 그린다 — pointer
+// 모드는 존이 없으니 아무것도 안 그린다. 게임을 가리면 안 되니 반투명으로만.
+// 노브 위치는 core.input.p1/p2를 그대로 읽는다(카운터 누적 아님) — render를
+// update 없이 두 번 불러도 같은 값을 읽으므로 순수성이 깨지지 않는다.
+function drawTouchOverlay(d, input) {
+  const layout = input.layout?.();
+  if (!layout) return;
+  const dual = !!(layout.p1 && layout.p2);
+  drawPadZone(d, layout.p1, input.p1, dual ? '1P' : null);
+  drawPadZone(d, layout.p2, input.p2, dual ? '2P' : null);
+}
+
+function drawPadZone(d, zone, pad, label) {
+  if (!zone) return;
+
+  if (zone.dpad) {
+    const { cx, cy, r } = zone.dpad;
+    d.circle(cx, cy, r, PALETTE.white, { fill: false, width: 3, alpha: 0.3 });
+    d.circle(cx, cy, r * 0.22, PALETTE.white, { fill: false, width: 2, alpha: 0.22 });
+    const kx = cx + (pad?.x ?? 0) * r * 0.6;
+    const ky = cy + (pad?.y ?? 0) * r * 0.6;
+    d.circle(kx, ky, r * 0.3, PALETTE.cyan, { alpha: 0.4, glow: 8 });
+    if (label) d.text(label, cx, cy - r - 14, { size: 16, bold: true, color: PALETTE.white, alpha: 0.5 });
+  }
+
+  if (zone.a) {
+    const { cx, cy, r } = zone.a;
+    const held = !!pad?.aHeld;
+    d.circle(cx, cy, r, PALETTE.magenta, { alpha: held ? 0.5 : 0.25, glow: held ? 14 : 0 });
+    d.circle(cx, cy, r, PALETTE.white, { fill: false, width: 2, alpha: 0.35 });
+    d.text('A', cx, cy, { size: 24, bold: true, color: PALETTE.white, alpha: 0.6 });
+  }
 }

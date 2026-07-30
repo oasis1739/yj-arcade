@@ -45,14 +45,27 @@ export function createFakeApi(ctx, { seed = 1 } = {}) {
 }
 
 // 60초치 입력을 흉내낸다. 방향·버튼·포인터를 골고루 흔들어 코드 경로를 넓게 친다.
+//
+// p1과 p2는 서로 다른 주기로 독립 구동한다. 예전엔 p2가 매 프레임 p1을
+// Object.assign으로 그대로 복사해 1P와 2P가 항상 바이트 단위로 같았다 —
+// 그러면 승패 로직이 p1만 읽어도(2P를 아예 무시해도) 이 하네스로는 절대
+// 들키지 않는다. 두 선수가 실제로 비대칭이어야 versus 게임을 의미 있게
+// 커버한다.
 export function driveInput(api, frame, rng) {
-  const p = api.input.p1;
-  if (frame % 17 === 0) { p.x = rng.int(3) - 1; p.y = rng.int(3) - 1; }
-  p.a = frame % 23 === 0;
-  p.aHeld = frame % 23 < 6;
-  p.b = frame % 41 === 0;
-  p.bHeld = frame % 41 < 4;
-  Object.assign(api.input.p2, p);
+  const p1 = api.input.p1;
+  if (frame % 17 === 0) { p1.x = rng.int(3) - 1; p1.y = rng.int(3) - 1; }
+  p1.a = frame % 23 === 0;
+  p1.aHeld = frame % 23 < 6;
+  p1.b = frame % 41 === 0;
+  p1.bHeld = frame % 41 < 4;
+
+  const p2 = api.input.p2;
+  if (frame % 19 === 0) { p2.x = rng.int(3) - 1; p2.y = rng.int(3) - 1; }
+  p2.a = frame % 31 === 0;
+  p2.aHeld = frame % 31 < 9;
+  p2.b = frame % 37 === 0;
+  p2.bHeld = frame % 37 < 5;
+
   const ptr = api.input.pointer;
   if (frame % 13 === 0) { ptr.x = rng.int(960); ptr.y = rng.int(640); }
   ptr.pressed = frame % 29 === 0;

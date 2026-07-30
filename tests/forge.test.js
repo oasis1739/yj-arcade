@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { TAGS, CONTROLS, SCORE_ORDERS } from '../src/shell/registry.js';
 
 const catalog = JSON.parse(readFileSync(new URL('../forge/catalog.json', import.meta.url)).toString());
@@ -69,5 +69,45 @@ describe('forge/contract.md', () => {
 
   it('Math.random 금지를 명시한다', () => {
     expect(contract).toContain('Math.random');
+  });
+});
+
+// 팔레트/Math.random/단일 파일 규칙은 지금까지 contract.md가 "말"만 하고
+// 아무도 "검사"하지 않았다. 여기서부터는 src/games/*.js 소스를 직접 읽어
+// 정적으로 강제한다. src/core/audio.js는 노이즈 버퍼에 Math.random()을
+// 정당하게 쓰므로, 검사 범위를 src/games/에만 한정한다 — 레포 전체를
+// grep하면 audio.js에서 오탐이 난다.
+describe('src/games/*.js 정적 린트 (팔레트 · Math.random · import 제한)', () => {
+  const gamesDir = new URL('../src/games/', import.meta.url);
+  const files = readdirSync(gamesDir).filter((f) => f.endsWith('.js'));
+
+  // 헥스 컬러 리터럴: 따옴표로 감싼 완전한 3/4/6/8자리 헥스값만 잡는다.
+  // (주석 속 "#123" 같은 우연한 문자열까지 오탐하지 않도록 따옴표로 경계를 준다.)
+  const HEX_COLOR = /(['"`])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{4}|[0-9a-fA-F]{3})\1/;
+  const MATH_RANDOM = /Math\.random\s*\(/;
+  const IMPORT_SPEC = /import\s+(?:[\s\S]*?\bfrom\s+)?['"]([^'"]+)['"]/g;
+  const ALLOWED_IMPORT = /^\.\.\/core\/[\w.-]+\.js$/;
+
+  it('게임 파일이 하나 이상 있다 (린트 대상이 비어 있지 않음을 확인)', () => {
+    expect(files.length).toBeGreaterThan(0);
+  });
+
+  describe.each(files)('%s', (file) => {
+    const src = readFileSync(new URL(file, gamesDir)).toString();
+
+    it('헥스 색 리터럴 없이 PALETTE만 쓴다', () => {
+      expect(src).not.toMatch(HEX_COLOR);
+    });
+
+    it('Math.random 대신 api.rng를 쓴다', () => {
+      expect(src).not.toMatch(MATH_RANDOM);
+    });
+
+    it('../core/*.js 밖의 모듈은 import하지 않는다 (게임 하나 = 파일 하나)', () => {
+      const specs = [...src.matchAll(IMPORT_SPEC)].map((m) => m[1]);
+      for (const spec of specs) {
+        expect(spec).toMatch(ALLOWED_IMPORT);
+      }
+    });
   });
 });

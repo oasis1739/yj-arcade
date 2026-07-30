@@ -40,6 +40,21 @@ describe('forge/catalog.json', () => {
     expect(ids).toContain('sudoku');
     expect(ids).toContain('baseball-battle');
   });
+
+  it('오너가 지정한 농장 디펜스와 무한의 계단이 큐에 있다', () => {
+    const ids = catalog.queue.map((e) => e.id);
+    expect(ids).toContain('farm-defense');
+    expect(ids).toContain('infinite-stairs');
+  });
+
+  it('세 축(혼자/아빠랑/두뇌)이 큐에 골고루 있다', () => {
+    const hasVersus = catalog.queue.some((e) => e.players === 2 && e.tags.includes('versus'));
+    const hasPuzzle = catalog.queue.some((e) => e.tags.includes('puzzle'));
+    const hasSoloAction = catalog.queue.some((e) => e.players === 1 && e.tags.includes('action'));
+    expect(hasVersus).toBe(true);
+    expect(hasPuzzle).toBe(true);
+    expect(hasSoloAction).toBe(true);
+  });
 });
 
 describe('forge/contract.md', () => {

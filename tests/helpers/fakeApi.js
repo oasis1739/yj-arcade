@@ -5,7 +5,14 @@ import { makeRng } from '../../src/core/rng.js';
 import { emptyPad } from '../../src/core/input.js';
 
 // 게임에 주입할 가짜 api. render 중 콜백 호출 같은 계약 위반을 기록한다.
-export function createFakeApi(ctx, { seed = 1 } = {}) {
+//
+// solo 기본값은 false다(=1P·2P 둘 다 사람) — driveInput()이 p1/p2를 서로
+// 다른 패턴으로 흔드는 이유가 "승패 로직이 두 입력을 다 읽는지"를 검증하기
+// 위해서인데, api.solo가 true(=2P는 AI로 대체)면 게임이 2P 입력을 정당하게
+// 무시해버려서 그 검증이 무력화된다. "1인 플레이 시 AI로 완주하는지"를 따로
+// 검증하고 싶은 게임 테스트는 { solo: true }를 넘겨라(src/games/baseball-battle
+// 테스트 참고).
+export function createFakeApi(ctx, { seed = 1, solo = false } = {}) {
   const events = { scores: [], gameOvers: [], illegal: [] };
   let rendering = false;
 
@@ -31,6 +38,7 @@ export function createFakeApi(ctx, { seed = 1 } = {}) {
     audio: createAudio(null),       // AudioContext 없는 환경 → 전부 무해하게 무시
     juice,
     rng: makeRng(seed),
+    solo,
     onScore(n) {
       if (rendering) events.illegal.push('render 중 onScore 호출');
       events.scores.push(n);

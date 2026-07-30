@@ -9,6 +9,9 @@ export function sessionButtons(w = W, h = H) {
   const cx = w / 2 - bw / 2;
   return {
     pause: { x: w - 68, y: 16, w: 52, h: 52 },
+    // 2인 게임(players === 2)의 일시정지 화면에만 뜨는 "혼자/2인" 토글.
+    // 제목("일시정지")과 계속하기 버튼 사이 여유 구간에 얹는다.
+    solo: { x: cx, y: h / 2 - 80, w: bw, h: 36 },
     resume: { x: cx, y: h / 2 - 20, w: bw, h: bh },
     restart: { x: cx, y: h / 2 + 52, w: bw, h: bh },
     menu: { x: cx, y: h / 2 + 124, w: bw, h: bh },
@@ -31,6 +34,9 @@ export function createSession({ core, records, onExit }) {
   let score = 0;
   let result = null;
   let lastError = null;
+  // 지금 이 세션의 api 객체. 참조를 들고 있어야 일시정지 화면의 "혼자/2인"
+  // 토글이 이미 게임에 넘어간 api.solo를 나중에 다시 뒤집을 수 있다.
+  let api = null;
 
   function makeApi() {
     return {
@@ -49,6 +55,10 @@ export function createSession({ core, records, onExit }) {
         hitstop: (...a) => core.juice.hitstop(...a),
       },
       rng: core.rng,
+      // 2P가 진짜 사람인지 셸은 추측하지 않는다("입력이 들어온 적 있으니
+      // 사람일 것"은 오탐이 흔하다) — 매번 혼자라고 가정하고 시작해서,
+      // 로컬 플레이어가 일시정지 화면의 토글로 명시적으로 뒤집게 한다.
+      solo: true,
       onScore(n) { if (Number.isFinite(n)) score = n; },
       onGameOver(res = {}) {
         if (state === 'over') return;
@@ -69,7 +79,8 @@ export function createSession({ core, records, onExit }) {
     state = 'playing';
     core.juice.reset();
     core.input.setControls?.(g.controls ?? 'pointer');
-    g.init(makeApi());
+    api = makeApi();
+    g.init(api);
   }
 
   // 일시정지/오버 화면의 "메뉴로" 버튼과 정확히 같은 종료 경로. 게임이 터졌을
@@ -79,6 +90,7 @@ export function createSession({ core, records, onExit }) {
       try { game.dispose(); } catch { /* 게임이 이미 망가졌어도 dispose 실패는 무시 */ }
     }
     game = null;
+    api = null;
     state = 'idle';
     score = 0;
     result = null;
@@ -100,6 +112,7 @@ export function createSession({ core, records, onExit }) {
     stop() {
       if (game) game.dispose();
       game = null;
+      api = null;
       state = 'idle';
       score = 0;
       result = null;
@@ -158,6 +171,10 @@ export function createSession({ core, records, onExit }) {
         d.rect(0, 0, W, H, PALETTE.bg, { alpha: 0.78 });
         if (state === 'paused') {
           d.text('일시정지', W / 2, H / 2 - 110, { size: 44, bold: true, color: PALETTE.cyan, glow: 16 });
+          if (game.players === 2) {
+            const label = api.solo ? '혼자 하기 (AI 상대) — 탭해서 2인으로' : '2인 대전 중 — 탭해서 혼자로';
+            button(d, B.solo, label, PALETTE.yellow, 17);
+          }
           button(d, B.resume, '계속하기', PALETTE.green);
         } else {
           d.text('게임 끝', W / 2, H / 2 - 150, { size: 44, bold: true, color: PALETTE.magenta, glow: 16 });
@@ -182,6 +199,10 @@ export function createSession({ core, records, onExit }) {
         state = 'paused';
         return 'pause';
       }
+      if (state === 'paused' && game.players === 2 && hitRect(B.solo, x, y)) {
+        api.solo = !api.solo;
+        return api.solo ? 'solo' : 'twoPlayers';
+      }
       if (state === 'paused' && hitRect(B.resume, x, y)) {
         state = 'playing';
         return 'resume';
@@ -200,10 +221,10 @@ export function createSession({ core, records, onExit }) {
   };
 }
 
-function button(d, r, label, color) {
+function button(d, r, label, color, size = 24) {
   d.roundRect(r.x, r.y, r.w, r.h, 14, color, { alpha: 0.16 });
   d.roundRect(r.x, r.y, r.w, r.h, 14, color, { fill: false, width: 2, glow: 10 });
-  d.text(label, r.x + r.w / 2, r.y + r.h / 2, { size: 24, bold: true, color });
+  d.text(label, r.x + r.w / 2, r.y + r.h / 2, { size, bold: true, color });
 }
 
 // 가상 터치 패드 오버레이. input.padLayout()이 정의한 존만 그린다 — pointer

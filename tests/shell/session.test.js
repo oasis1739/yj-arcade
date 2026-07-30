@@ -392,6 +392,71 @@ describe('createSession — 터치 오버레이', () => {
   });
 });
 
+describe('createSession — api.solo (2P가 진짜 사람인지 셸이 추측하지 않는다)', () => {
+  it('게임을 시작하면 api.solo는 true로 시작한다(2P가 있다고 함부로 가정하지 않는다)', () => {
+    const { session } = mkSession(stubCtx());
+    const g = fakeGame({ players: 2, tags: ['action', 'versus'] });
+    session.start(g);
+    expect(g.api.solo).toBe(true);
+  });
+
+  it('1인 게임은 일시정지해도 혼자/2인 토글이 뜨지 않고, 그 자리를 탭해도 아무 일도 안 난다', () => {
+    const ctx = stubCtx();
+    const { session } = mkSession(ctx);
+    const g = fakeGame({ players: 1 });
+    session.start(g);
+    const B = sessionButtons(960, 640);
+    session.tap(B.pause.x + 5, B.pause.y + 5);
+    expect(session.state()).toBe('paused');
+
+    expect(session.tap(B.solo.x + 5, B.solo.y + 5)).toBe(null);
+    expect(g.api.solo).toBe(true); // 1인 게임이라 애초에 의미 없는 값이지만 안 뒤집힌다
+
+    session.render(ctx);
+    const texts = ctx.calls.filter((c) => c[0] === 'fillText').map((c) => c[1]);
+    expect(texts.some((t) => String(t).includes('AI'))).toBe(false);
+    expect(texts.some((t) => String(t).includes('2인'))).toBe(false);
+  });
+
+  it('2인 게임은 일시정지 화면에 혼자/2인 토글이 뜨고, 탭하면 api.solo가 뒤집힌다', () => {
+    const ctx = stubCtx();
+    const { session } = mkSession(ctx);
+    const g = fakeGame({ players: 2, tags: ['action', 'versus'] });
+    session.start(g);
+    const B = sessionButtons(960, 640);
+    session.tap(B.pause.x + 5, B.pause.y + 5);
+    expect(session.state()).toBe('paused');
+
+    session.render(ctx);
+    let texts = ctx.calls.filter((c) => c[0] === 'fillText').map((c) => c[1]);
+    expect(texts.some((t) => String(t).includes('AI'))).toBe(true); // 기본은 혼자(AI 상대)
+
+    expect(session.tap(B.solo.x + 5, B.solo.y + 5)).toBe('twoPlayers');
+    expect(g.api.solo).toBe(false);
+
+    ctx.calls.length = 0;
+    session.render(ctx);
+    texts = ctx.calls.filter((c) => c[0] === 'fillText').map((c) => c[1]);
+    expect(texts.some((t) => String(t).includes('2인 대전 중'))).toBe(true);
+
+    expect(session.tap(B.solo.x + 5, B.solo.y + 5)).toBe('solo');
+    expect(g.api.solo).toBe(true);
+  });
+
+  it('다시하기로 재시작하면 api.solo가 true로 리셋된다', () => {
+    const { session } = mkSession(stubCtx());
+    const g = fakeGame({ players: 2, tags: ['action', 'versus'] });
+    session.start(g);
+    const B = sessionButtons(960, 640);
+    session.tap(B.pause.x + 5, B.pause.y + 5);
+    session.tap(B.solo.x + 5, B.solo.y + 5); // false로 뒤집는다
+    expect(g.api.solo).toBe(false);
+
+    session.tap(B.restart.x + 5, B.restart.y + 5);
+    expect(g.api.solo).toBe(true);
+  });
+});
+
 describe('createSession — 게임 예외로부터 셸을 보호한다', () => {
   afterEach(() => { vi.restoreAllMocks(); });
 

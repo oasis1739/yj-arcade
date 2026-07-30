@@ -194,6 +194,14 @@ const OUTCOME_LABEL = {
 
 function otherSide(side) { return side === 1 ? 2 : 1; }
 
+// 지금 이 자리(투수/타자 side)가 AI인지 — 오직 api.solo로만 정한다. 1P는
+// 항상 로컬/사람이고, AI가 필요하면 항상 2P 자리다. "그동안 이 패드를
+// 만졌는지" 같은 휴리스틱은 더 이상 쓰지 않는다 — 셸이 명시적으로 선언한
+// 값이라 첫 프레임부터 옳다(계약서 "api.solo" 절 참고).
+export function isAiSide(solo, side) {
+  return solo === true && side === 2;
+}
+
 export default {
   id: 'baseball-battle',
   title: '야구 배틀왕',
@@ -226,7 +234,6 @@ export default {
   init(api) {
     this.api = api;
     this.s = createBaseballState();
-    this.touched = { 1: false, 2: false };
     this.pitcherWait = 0;
     this.aiThink = 0;
     this.aiSwingAt = null;
@@ -238,14 +245,11 @@ export default {
     const s = this.s;
     const api = this.api;
 
-    this._markTouched(api.input.p1, 1);
-    this._markTouched(api.input.p2, 2);
-
     if (s.phase === 'pitchSelect') {
       this.pitcherWait += dt;
       const side = s.pitcher;
       const pad = side === 1 ? api.input.p1 : api.input.p2;
-      const ai = !this.touched[side];
+      const ai = isAiSide(api.solo, side);
 
       let selection = null;
       if (ai) {
@@ -273,7 +277,7 @@ export default {
       if (s.phase === 'inFlight') {
         const side = s.batter;
         const pad = side === 1 ? api.input.p1 : api.input.p2;
-        const ai = !this.touched[side];
+        const ai = isAiSide(api.solo, side);
 
         if (ai) {
           if (this.aiSwingAt === null) {
@@ -295,7 +299,9 @@ export default {
       if (s.over) {
         if (!this.reported) {
           this.reported = true;
-          api.onGameOver({ score: s.score[1] + s.score[2], winner: s.winner });
+          // score는 항상 1P의 점수만 보고한다(계약서 "onScore가 2인 게임에서
+          // 뜻하는 것" 참고) — onScore로 마지막에 보낸 값과 일치시킨다.
+          api.onGameOver({ score: s.score[1], winner: s.winner });
           api.juice.shake(20, 0.5);
           api.audio.sweep(320, 900, 420);
         }
@@ -305,12 +311,6 @@ export default {
         s.phase = 'pitchSelect';
         s.resultTimer = 0;
       }
-    }
-  },
-
-  _markTouched(pad, side) {
-    if (pad.a || pad.aHeld || Math.abs(pad.x) > 0.15 || Math.abs(pad.y) > 0.15) {
-      this.touched[side] = true;
     }
   },
 
@@ -326,7 +326,9 @@ export default {
     const r = s.lastResult;
     if (!r) return;
     if (r.runs > 0) {
-      api.onScore(s.score[1] + s.score[2]);
+      // 1P의 점수만 보고한다 — 합산은 "누가 잘했는지"를 지워버린다
+      // (계약서 "onScore가 2인 게임에서 뜻하는 것" 참고).
+      api.onScore(s.score[1]);
       if (r.outcome === 'homerun') {
         api.juice.shake(16, 0.4);
         api.juice.burst(BATTER_POS.x, BATTER_POS.y, { color: PALETTE.yellow, count: 30, speed: 300 });
@@ -363,11 +365,11 @@ export default {
 
     // 투수/타자
     d.circle(PITCHER_POS.x, PITCHER_POS.y, 20, SIDE_COLOR[s.pitcher], { glow: 10 });
-    d.text(this.touched[s.pitcher] ? `${s.pitcher}P 투수` : 'AI 투수', PITCHER_POS.x, PITCHER_POS.y - 34,
+    d.text(isAiSide(this.api.solo, s.pitcher) ? 'AI 투수' : `${s.pitcher}P 투수`, PITCHER_POS.x, PITCHER_POS.y - 34,
       { size: 15, color: SIDE_COLOR[s.pitcher] });
 
     d.circle(BATTER_POS.x, BATTER_POS.y, 20, SIDE_COLOR[s.batter], { glow: 10 });
-    d.text(this.touched[s.batter] ? `${s.batter}P 타자` : 'AI 타자', BATTER_POS.x, BATTER_POS.y - 34,
+    d.text(isAiSide(this.api.solo, s.batter) ? 'AI 타자' : `${s.batter}P 타자`, BATTER_POS.x, BATTER_POS.y - 34,
       { size: 15, color: SIDE_COLOR[s.batter] });
 
     // 조준 존(3x3): 코스(가로) x 구종(세로)
@@ -420,6 +422,5 @@ export default {
   dispose() {
     this.s = null;
     this.api = null;
-    this.touched = null;
   },
 };

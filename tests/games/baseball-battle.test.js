@@ -2,9 +2,10 @@ import { describe, it, expect } from 'vitest';
 import game, {
   createBaseballState, pickPitch, flightDuration, hitWindow, classifySwing, runsFor,
   startPitch, advanceFlight, swingAt, resolvePitchOutcome, endHalfInning, decideWinner,
-  INNINGS, OUTS_PER_HALF, MAX_PITCHES_PER_HALF, PITCH_TYPES, COURSES,
+  isAiSide, INNINGS, OUTS_PER_HALF, MAX_PITCHES_PER_HALF, PITCH_TYPES, COURSES,
 } from '../../src/games/baseball-battle.js';
 import { createFakeApi } from '../helpers/fakeApi.js';
+import { stubCtx } from '../helpers/stubCtx.js';
 import { makeRng } from '../../src/core/rng.js';
 
 describe('초기 상태', () => {
@@ -248,20 +249,21 @@ describe('계약', () => {
   });
 });
 
-describe('1인 플레이 — 2P를 건드리지 않아도(=AI) 게임이 끝까지 진행된다', () => {
+describe('isAiSide — api.solo만으로 AI 자리를 정한다', () => {
+  it('solo가 true면 2P 자리만 AI다', () => {
+    expect(isAiSide(true, 1)).toBe(false);
+    expect(isAiSide(true, 2)).toBe(true);
+  });
+
+  it('solo가 false면 두 자리 다 사람이다(AI 없음)', () => {
+    expect(isAiSide(false, 1)).toBe(false);
+    expect(isAiSide(false, 2)).toBe(false);
+  });
+});
+
+describe('1인 플레이 (api.solo === true) — 2P를 건드리지 않아도 AI가 대신 진행한다', () => {
   it('2P 입력이 전혀 없어도 결국 onGameOver가 승자를 보고한다', () => {
-    const { api, events } = createFakeApi({
-      save() {}, restore() {}, beginPath() {}, closePath() {}, moveTo() {}, lineTo() {},
-      arc() {}, arcTo() {}, rect() {}, roundRect() {}, ellipse() {}, quadraticCurveTo() {},
-      bezierCurveTo() {}, fill() {}, stroke() {}, clip() {}, fillRect() {}, strokeRect() {},
-      clearRect() {}, fillText() {}, strokeText() {}, translate() {}, rotate() {}, scale() {},
-      transform() {}, setTransform() {}, resetTransform() {}, drawImage() {}, setLineDash() {},
-      putImageData() {}, canvas: { width: 960, height: 640 },
-      measureText: () => ({ width: 10 }),
-      createLinearGradient: () => ({ addColorStop() {} }),
-      createRadialGradient: () => ({ addColorStop() {} }),
-      getImageData: () => ({ data: new Uint8ClampedArray(4) }),
-    });
+    const { api, events } = createFakeApi(stubCtx(), { solo: true });
     const rng = makeRng(321);
 
     game.init(api);
@@ -277,5 +279,70 @@ describe('1인 플레이 — 2P를 건드리지 않아도(=AI) 게임이 끝까�
 
     expect(events.gameOvers.length).toBeGreaterThan(0);
     expect([1, 2]).toContain(events.gameOvers[0].winner);
+  });
+});
+
+describe('2인 플레이 (api.solo === false) — AI가 대신 스윙해주지 않는다', () => {
+  it('2P가 타석에서 한 번도 A를 누르지 않으면 콜드 스트라이크(타임아웃)로만 아웃 처리된다(AI가 대신 맞춰주지 않는다)', () => {
+    const { api } = createFakeApi(stubCtx(), { solo: false });
+    game.init(api);
+    // 1P가 곧바로 던지게 만든다.
+    game.s.pitcher = 1;
+    game.s.batter = 2;
+    startPitch(game.s, { type: 'fastball', course: 'middle' });
+    const duration = game.s.pitch.duration;
+    // 2P(사람 취급)는 A를 전혀 누르지 않는다 — solo=false라 AI가 대신 휘두르면 안 된다.
+    api.input.p2.a = false;
+    api.input.p2.aHeld = false;
+
+    let elapsed = 0;
+    while (game.s.phase === 'inFlight' && elapsed < duration) {
+      game.update(1 / 60);
+      elapsed += 1 / 60;
+    }
+    // 비행시간 안에는 아직 안 끝나 있어야 한다(AI가 몰래 맞춰버리지 않았다는 뜻).
+    expect(game.s.phase).toBe('inFlight');
+    expect(game.s.score[2]).toBe(0);
+
+    game.update(duration); // 그레이스(0.05s)를 넘기도록 충분히 진행
+    expect(game.s.phase).toBe('result');
+    expect(game.s.lastResult.outcome).toBe('out'); // 타임아웃 → 아웃. AI 안타가 아니다.
+    game.dispose();
+  });
+});
+
+describe('onScore/onGameOver — 2인 게임은 항상 1P의 점수만 보고한다', () => {
+  it('swingAt으로 2P가 득점해도 update가 보고하는 점수는 1P 것이다(0에서 안 움직임)', () => {
+    const { api, events } = createFakeApi(stubCtx(), { solo: false });
+    game.init(api);
+    game.s.pitcher = 1;
+    game.s.batter = 2;
+    startPitch(game.s, { type: 'fastball', course: 'middle' });
+    game.s.pitch.elapsed = game.s.pitch.duration; // 정확한 타이밍 → 2P 홈런
+    api.input.p2.a = true;
+    game.update(1 / 60);
+
+    expect(game.s.score[2]).toBeGreaterThan(0); // 2P는 실제로 득점했다
+    expect(events.scores.length).toBeGreaterThan(0);
+    expect(events.scores[events.scores.length - 1]).toBe(game.s.score[1]); // 보고된 값은 1P 것
+    expect(events.scores[events.scores.length - 1]).toBe(0); // 1P는 아직 0점
+    game.dispose();
+  });
+
+  it('게임이 끝나면 onGameOver의 score도 1P의 최종 점수와 같다', () => {
+    const { api, events } = createFakeApi(stubCtx(), { solo: false });
+    game.init(api);
+    game.s.inning = INNINGS;
+    game.s.half = 'bottom';
+    game.s.outs = OUTS_PER_HALF;
+    game.s.score = { 1: 5, 2: 2 };
+    endHalfInning(game.s); // 3이닝 종료, 1P 승 (over=true)
+    game.s.phase = 'result'; // update()는 result 단계에서만 over를 확인해 onGameOver를 쏜다
+    game.update(1 / 60);
+    game.dispose();
+
+    expect(events.gameOvers.length).toBe(1);
+    expect(events.gameOvers[0].winner).toBe(1);
+    expect(events.gameOvers[0].score).toBe(5);
   });
 });

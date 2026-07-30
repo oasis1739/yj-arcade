@@ -41,10 +41,14 @@ describe('forge/catalog.json', () => {
     expect(ids).toContain('baseball-battle');
   });
 
-  it('오너가 지정한 농장 디펜스와 무한의 계단이 큐에 있다', () => {
+  it('오너가 지정한 농장 디펜스가 큐에 있다', () => {
     const ids = catalog.queue.map((e) => e.id);
     expect(ids).toContain('farm-defense');
-    expect(ids).toContain('infinite-stairs');
+  });
+
+  it('오너가 드롭한 무한의 계단은 큐에 없다 (구현 없이 큐만 정리된 상태를 고정한다)', () => {
+    const ids = catalog.queue.map((e) => e.id);
+    expect(ids).not.toContain('infinite-stairs');
   });
 
   it('세 축(혼자/아빠랑/두뇌)이 큐에 골고루 있다', () => {

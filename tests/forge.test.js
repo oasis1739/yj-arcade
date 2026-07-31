@@ -45,12 +45,17 @@ describe('forge/catalog.json', () => {
     expect(both).toEqual([]);
   });
 
-  it('유준이가 직접 요청한 그림퍼즐·그림기억·앵그리버드2인이 큐에 있다 (미로찾기는 구현돼 큐에서 빠졌다)', () => {
-    const ids = catalog.queue.map((e) => e.id);
-    for (const id of ['picture-puzzle', 'memory-sequence', 'fort-duel']) {
-      expect(ids).toContain(id);
+  // 오너가 직접 지목한 4종은 "큐에 있거나 이미 구현돼 있거나" 둘 중 하나여야 한다.
+  // 구현될 때마다 이 목록을 손대야 하는 형태로 쓰면(= 큐에 있어야 한다고 못박으면)
+  // "구현된 게임은 큐에서 뺀다" 규칙과 정면으로 충돌한다. 그래서 합집합으로 검사한다.
+  it('유준이가 직접 요청한 4종은 큐에 있거나 이미 구현돼 있다', () => {
+    const queued = catalog.queue.map((e) => e.id);
+    const shipped = readdirSync(new URL('../src/games/', import.meta.url))
+      .filter((f) => f.endsWith('.js'))
+      .map((f) => f.replace(/\.js$/, ''));
+    for (const id of ['picture-puzzle', 'maze-50', 'memory-sequence', 'fort-duel']) {
+      expect([...queued, ...shipped]).toContain(id);
     }
-    expect(ids).not.toContain('maze-50');
   });
 
   it('출시 후 플레이테스트에서 반려된 농장 디펜스·야구 배틀왕은 큐에 없다 (구현은 archived:true로 남고, 큐는 새 작업만 담는다)', () => {

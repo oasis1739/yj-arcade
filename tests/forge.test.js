@@ -35,9 +35,21 @@ describe('forge/catalog.json', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it('스펙이 요청한 스도쿠가 큐에 있다', () => {
+  it('이미 구현된 게임은 큐에 남아 있지 않다 (큐는 아직 안 만든 것만 담는다)', () => {
+    const shipped = readdirSync(new URL('../src/games/', import.meta.url))
+      .filter((f) => f.endsWith('.js'))
+      .map((f) => f.replace(/\.js$/, ''));
+    expect(shipped.length).toBeGreaterThan(0);
+    const queued = catalog.queue.map((e) => e.id);
+    const both = shipped.filter((id) => queued.includes(id));
+    expect(both).toEqual([]);
+  });
+
+  it('유준이가 직접 요청한 그림퍼즐·미로찾기·그림기억·앵그리버드2인이 큐에 있다', () => {
     const ids = catalog.queue.map((e) => e.id);
-    expect(ids).toContain('sudoku');
+    for (const id of ['picture-puzzle', 'maze-50', 'memory-sequence', 'fort-duel']) {
+      expect(ids).toContain(id);
+    }
   });
 
   it('출시 후 플레이테스트에서 반려된 농장 디펜스·야구 배틀왕은 큐에 없다 (구현은 archived:true로 남고, 큐는 새 작업만 담는다)', () => {

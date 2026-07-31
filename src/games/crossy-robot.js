@@ -1,15 +1,19 @@
 import { PALETTE } from '../core/draw.js';
 
-const SCROLL_AT = 6;   // 이 레인 위로 올라가면 판을 한 칸 내린다
-const RAMP_LANES = 60; // 이만큼 올라가면 최고 난이도에 도달 (그 이후는 상한 유지)
-
-// ── 순수 규칙 ────────────────────────────────────────────────────────────────
+const SCROLL_AT = 6;    // 이 레인 위로 올라가면 판을 한 칸 내린다
+const RAMP_LANES = 100; // 이만큼 올라가면 최고 난이도에 도달 (그 이후는 상한 유지)
+// 8세·처음 플레이 기준 재조정(이전 60/1.4+2.6+2.4 램프는 초반부터 너무
+// 빡빡했다는 실제 플레이테스트 피드백 반영): 시작값을 낮추고(기본 속도
+// 1.4→1.0, 무작위 폭 2.6→1.8) 상한까지 가는 거리를 60→100레인으로 늘려
+// 램프 자체를 완만하게 편다. 차 밀도(count)는 t를 그대로 쓰므로 분모가
+// 커진 만큼 자동으로 같이 완만해진다 — 그래도 t가 오를수록 계속 오르고
+// 상한 이후로는 더 안 오르는 "진짜 램프"는 그대로 유지한다.
 export function makeLane(index, rng) {
   if (index % 4 === 0) return { type: 'safe', dir: 1, speed: 0, cars: [] };
 
   const t = Math.min(index / RAMP_LANES, 1);    // 0(시작)..1(최고 난이도), 상한 있음
   const dir = rng.next() < 0.5 ? -1 : 1;
-  const speed = 1.4 + rng.next() * 2.6 + t * 2.4;         // 초당 칸 수, 갈수록 빨라진다
+  const speed = 1.0 + rng.next() * 1.8 + t * 2.2;         // 초당 칸 수, 갈수록 빨라진다
   const count = 2 + rng.int(2) + Math.floor(t * 2);       // 갈수록 차가 조밀해진다
   const cars = [];
   for (let i = 0; i < count; i++) {

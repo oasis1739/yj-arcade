@@ -1,0 +1,65 @@
+{
+  "size": { "width": 720, "height": 540 },
+  "pictures": [
+    {
+      "file": "earth.jpg",
+      "title": "푸른 지구",
+      "source": "https://images.nasa.gov/details/GSFC_20171208_Archive_e001386",
+      "license": "Public Domain (NASA)"
+    },
+    {
+      "file": "moon-landing.jpg",
+      "title": "달 착륙",
+      "source": "https://images.nasa.gov/details/as11-40-5903",
+      "license": "Public Domain (NASA)"
+    },
+    {
+      "file": "nebula.jpg",
+      "title": "별이 태어나는 곳",
+      "source": "https://images.nasa.gov/details/GSFC_20171208_Archive_e000842",
+      "license": "Public Domain (NASA/ESA)"
+    },
+    {
+      "file": "mars-rover.jpg",
+      "title": "화성 탐사차",
+      "source": "https://images.nasa.gov/details/PIA24542",
+      "license": "Public Domain (NASA/JPL-Caltech)"
+    },
+    {
+      "file": "rocket-launch.jpg",
+      "title": "로켓 발사",
+      "source": "https://images.nasa.gov/details/S69-39959",
+      "license": "Public Domain (NASA)"
+    },
+    {
+      "file": "volcano.jpg",
+      "title": "화산 폭발",
+      "source": "https://commons.wikimedia.org/wiki/File:Lava_fountain_dome_2.jpg",
+      "license": "Public Domain (USGS, via Wikimedia Commons)"
+    },
+    {
+      "file": "coral-reef.jpg",
+      "title": "산호초 물고기",
+      "source": "https://commons.wikimedia.org/wiki/File:Parrotfish_school_over_coral_reef_Guam_2022.png",
+      "license": "Public Domain (NOAA, via Wikimedia Commons)"
+    },
+    {
+      "file": "dinosaur.jpg",
+      "title": "공룡 화석",
+      "source": "https://commons.wikimedia.org/wiki/File:Tyrannosaurus_Rex_skeleton_is_on_display_in_the_Dinosaurs_hall_at_the_Smithsonian%27s_National_Museum_of_Natural_History_in_Washington,_D.C..jpg",
+      "license": "Public Domain (USDA, via Wikimedia Commons)"
+    },
+    {
+      "file": "police-car.jpg",
+      "title": "경찰차",
+      "source": "https://commons.wikimedia.org/wiki/File:Miami-dade-sheriff-office-interceptor.jpg",
+      "license": "CC0 (Wikimedia Commons)"
+    },
+    {
+      "file": "elephant.jpg",
+      "title": "코끼리",
+      "source": "https://commons.wikimedia.org/wiki/File:African_elephant,_Mbeli-Bai,_Republic_of_Congo_(18320426684).jpg",
+      "license": "Public Domain (U.S. Fish and Wildlife Service, via Wikimedia Commons)"
+    }
+  ]
+}

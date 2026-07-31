@@ -5,14 +5,15 @@ import { makeRng } from '../../src/core/rng.js';
 const rng = () => makeRng(99);
 
 describe('레인 생성', () => {
-  it('4번째마다 안전지대다', () => {
+  it('4번째마다 안전지대다 (+ 시작 직후 학습 레인 1)', () => {
     expect(makeLane(0, rng()).type).toBe('safe');
+    expect(makeLane(1, rng()).type).toBe('safe'); // 학습 레인: 첫 교통 전에 한 번 더 안전하게 이동
     expect(makeLane(4, rng()).type).toBe('safe');
-    expect(makeLane(1, rng()).type).toBe('road');
+    expect(makeLane(3, rng()).type).toBe('road');
   });
 
   it('도로에는 차와 방향과 속도가 있다', () => {
-    const l = makeLane(1, rng());
+    const l = makeLane(3, rng());
     expect(l.cars.length).toBeGreaterThan(0);
     expect(Math.abs(l.dir)).toBe(1);
     expect(l.speed).toBeGreaterThan(0);
@@ -20,6 +21,7 @@ describe('레인 생성', () => {
 
   it('안전지대에는 차가 없다', () => {
     expect(makeLane(0, rng()).cars).toEqual([]);
+    expect(makeLane(1, rng()).cars).toEqual([]);
   });
 });
 
@@ -139,7 +141,8 @@ describe('플레이어 이동', () => {
 
 describe('난이도 램프', () => {
   it('레인 인덱스가 커질수록 도로가 더 빠르고 조밀해진다', () => {
-    const low = makeLane(1, makeRng(7));
+    // index 1은 학습 레인(safe)이라 도로끼리 비교하려면 3을 쓴다.
+    const low = makeLane(3, makeRng(7));
     const high = makeLane(401, makeRng(7));   // 같은 시드 → 랜덤 성분은 동일, 인덱스만 다름
     expect(high.speed).toBeGreaterThan(low.speed);
     expect(high.cars.length).toBeGreaterThanOrEqual(low.cars.length);

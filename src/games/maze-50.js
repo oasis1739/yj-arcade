@@ -34,17 +34,42 @@ function edgeKey(r1, c1, r2, c2) {
     : `${r2},${c2}|${r1},${c1}`;
 }
 
-// 5단계 구간(밴드)마다 규칙을 하나씩 새로 소개하고, 5구간(41~50)에서 전부
-// 합친다. 미로 크기는 구간 경계와 무관하게 5단계마다 한 칸씩 계속 커진다 —
-// "구간 안에서도 조금씩 커진다"를 자연스럽게 만족한다.
+// 5단계 구간(밴드)마다 규칙을 하나씩 새로 소개하고, 5구간에서 전부 합친다.
+//
+// 실제 플레이 피드백: 슈퍼마리오급 실력의 8세 아이가 5단계까지 "너무 쉽다"고
+// 판단(유준이 본인 판단). 옛 곡선은 1~10단계가 전부 5x5 고정 크기에 아무
+// 규칙도 안 붙는 순수 워밍업이라 사실상 외길 복도였다(측정: 1단계 분기점
+// 0개). 그래서 밴드 폭을 앞쪽은 짧게(1~3단계), 뒤쪽은 길게(34~50단계) 잡고,
+// 미로 크기도 1단계부터 훨씬 빠르게 키운다 — 규칙(열쇠→안개→순찰)이 20단계가
+// 아니라 10단계 안팎에서 다 등장한다. 미로 생성 자체는 재귀 백트래킹이라
+// 이미 "완전 미로"(스패닝 트리, 지름길/루프 없음, 유일 경로) — 위상 자체를
+// 더 어렵게 바꿀 필요는 없고 크기와 규칙 등장 시점만 당기면 된다.
+//   밴드1 1~3   : 순수 이동 (그래도 6~7칸이라 옛 5x5보다 확 크다)
+//   밴드2 4~13  : 열쇠/문 등장 (구간 후반엔 열쇠 2개로 늘어남)
+//   밴드3 14~23 : 안개(시야 제한) 등장
+//   밴드4 24~33 : 순찰 로봇 등장 (구간 후반엔 로봇 2마리)
+//   밴드5 34~50 : 전부 합침 + 제한 시간
 export function stageConfig(stage) {
   const s = Math.min(50, Math.max(1, Math.floor(stage) || 1));
-  const band = Math.min(5, Math.ceil(s / 10));
-  const posInBand = (s - 1) % 10; // 0..9
 
-  const size = Math.min(14, 5 + Math.floor((s - 1) / 5));
+  let band;
+  let posInBand;
+  if (s <= 3) { band = 1; posInBand = s - 1; }
+  else if (s <= 13) { band = 2; posInBand = s - 4; }
+  else if (s <= 23) { band = 3; posInBand = s - 14; }
+  else if (s <= 33) { band = 4; posInBand = s - 24; }
+  else { band = 5; posInBand = s - 34; }
 
-  const keysCount = band === 2 || band === 5 ? 1 : 0;
+  // 6칸에서 시작해 2단계마다 한 칸씩 커지고 14칸(화면에서 아직 또렷하게
+  // 읽히는 한계 — cell = 360/14 ≈ 25.7px)에서 멈춘다. 17단계면 이미 최대
+  // 크기라, 그 뒤로는 규칙 조합이 난이도를 밀어올린다.
+  const size = Math.min(14, 6 + Math.floor((s - 1) / 2));
+
+  const keysCount = band === 2
+    ? (posInBand >= 5 ? 2 : 1)
+    : band === 5
+      ? (posInBand >= 12 ? 2 : 1)
+      : 0;
 
   const fog = band === 3 || band === 5;
   let fogRadius = null;
@@ -57,9 +82,9 @@ export function stageConfig(stage) {
   let patrolCount = 0;
   if (band === 4) patrolCount = posInBand >= 5 ? 2 : 1;
   else if (band === 5) patrolCount = 2;
-  const patrolInterval = patrolCount > 0 ? Math.max(0.28, 0.55 - posInBand * 0.025) : null;
+  const patrolInterval = patrolCount > 0 ? Math.max(0.22, 0.45 - posInBand * 0.02) : null;
 
-  const timeLimit = band === 5 ? Math.max(50, 110 - posInBand * 6) : null;
+  const timeLimit = band === 5 ? Math.max(50, 95 - posInBand * 3) : null;
 
   return {
     stage: s,

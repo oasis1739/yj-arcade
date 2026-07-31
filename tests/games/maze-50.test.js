@@ -267,34 +267,49 @@ describe('난이도 곡선', () => {
     expect(stageConfig(50).mazeW).toBeGreaterThan(stageConfig(1).mazeW);
   });
 
-  it('각 구간은 정해진 규칙만 새로 켠다 (1~10 없음, 11~20 열쇠, 21~30 안개, 31~40 순찰)', () => {
-    const b1 = stageConfig(5);
+  it('각 구간은 정해진 규칙만 새로 켠다 (1~3 없음, 4~13 열쇠, 14~23 안개, 24~33 순찰)', () => {
+    const b1 = stageConfig(2);
     expect(b1.keysCount).toBe(0);
     expect(b1.fog).toBe(false);
     expect(b1.patrolCount).toBe(0);
 
-    const b2 = stageConfig(15);
+    const b2 = stageConfig(8);
     expect(b2.keysCount).toBeGreaterThan(0);
     expect(b2.fog).toBe(false);
     expect(b2.patrolCount).toBe(0);
 
-    const b3 = stageConfig(25);
+    const b3 = stageConfig(18);
     expect(b3.keysCount).toBe(0);
     expect(b3.fog).toBe(true);
     expect(b3.patrolCount).toBe(0);
 
-    const b4 = stageConfig(35);
+    const b4 = stageConfig(28);
     expect(b4.keysCount).toBe(0);
     expect(b4.fog).toBe(false);
     expect(b4.patrolCount).toBeGreaterThan(0);
   });
 
-  it('41~50단계는 열쇠·안개·순찰·제한시간이 전부 켜진다', () => {
+  it('34~50단계는 열쇠·안개·순찰·제한시간이 전부 켜진다', () => {
     const b5 = stageConfig(45);
     expect(b5.keysCount).toBeGreaterThan(0);
     expect(b5.fog).toBe(true);
     expect(b5.patrolCount).toBeGreaterThan(0);
     expect(b5.timeLimit).toBeGreaterThan(0);
+  });
+
+  it('초반 체감 난이도: 옛 곡선(1~10단계 전부 5x5, 규칙 없음)보다 훨씬 빨리 커지고 규칙이 붙는다', () => {
+    // 실제 플레이 피드백(8세, 5단계까지 "너무 쉽다") 회귀 방지용 고정값.
+    expect(stageConfig(1).mazeW).toBe(6); // 옛 값 5보다 이미 크다
+    expect(stageConfig(3).mazeW).toBeGreaterThanOrEqual(7);
+    expect(stageConfig(5).mazeW).toBeGreaterThanOrEqual(8);
+    // 열쇠/문(예전엔 11단계부터)이 10단계 안쪽에서 등장한다.
+    expect(stageConfig(5).keysCount).toBeGreaterThan(0);
+    expect(stageConfig(5).band).toBe(2);
+    // 안개(예전엔 21단계부터)도 20단계 안쪽에서 등장한다.
+    expect(stageConfig(15).fog).toBe(true);
+    // 10단계면 이미 열쇠/문 구간 안이고, 옛 6칸보다 훨씬 큰 미로다.
+    expect(stageConfig(10).mazeW).toBeGreaterThanOrEqual(10);
+    expect(stageConfig(10).keysCount).toBeGreaterThan(0);
   });
 });
 

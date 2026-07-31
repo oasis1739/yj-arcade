@@ -253,7 +253,8 @@ export default {
   controls: 'pointer',
   scoreOrder: 'high',
   scoreLabel: '점수',
-  archived: false,
+  // 플레이테스트 결과 "뭔 게임인지 감이 안 온다"는 평가로 보관 처리. 코드/테스트는 유지, 메뉴에서만 숨김.
+  archived: true,
 
   icon(ctx, size) {
     const u = size / 8;

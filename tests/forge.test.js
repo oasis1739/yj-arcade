@@ -35,15 +35,15 @@ describe('forge/catalog.json', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it('스펙이 요청한 스도쿠와 야구 배틀왕이 큐에 있다', () => {
+  it('스펙이 요청한 스도쿠가 큐에 있다', () => {
     const ids = catalog.queue.map((e) => e.id);
     expect(ids).toContain('sudoku');
-    expect(ids).toContain('baseball-battle');
   });
 
-  it('오너가 지정한 농장 디펜스가 큐에 있다', () => {
+  it('출시 후 플레이테스트에서 반려된 농장 디펜스·야구 배틀왕은 큐에 없다 (구현은 archived:true로 남고, 큐는 새 작업만 담는다)', () => {
     const ids = catalog.queue.map((e) => e.id);
-    expect(ids).toContain('farm-defense');
+    expect(ids).not.toContain('farm-defense');
+    expect(ids).not.toContain('baseball-battle');
   });
 
   it('오너가 드롭한 무한의 계단은 큐에 없다 (구현 없이 큐만 정리된 상태를 고정한다)', () => {
@@ -63,8 +63,8 @@ describe('forge/catalog.json', () => {
 
 describe('forge/contract.md', () => {
   it('모범 예시 두 개를 가리킨다', () => {
-    expect(contract).toContain('src/games/neon-snake.js');
     expect(contract).toContain('src/games/crossy-robot.js');
+    expect(contract).toContain('src/games/sudoku.js');
   });
 
   it('계약 테스트 실행 명령을 알려준다', () => {

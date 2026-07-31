@@ -33,8 +33,15 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // 그 외 동일 출처 자산(해시가 붙은 번들, manifest, 아이콘)은 캐시 우선.
+  // 그 외 동일 출처 자산(해시가 붙은 번들, manifest, 아이콘, public/puzzles/*)은 캐시 우선.
   // Vite가 빌드마다 새 파일명을 쓰므로 캐시 우선이어도 새 빌드는 새 URL로 받아진다.
+  //
+  // 직소 퍼즐 사진(public/puzzles/*.jpg, manifest.json)은 의도적으로 CORE에 넣지 않았다.
+  // 이유: CORE는 install 시 waitUntil로 전부 받아야 설치가 끝난다 — 사진 10장(~1.3MB)을
+  // 여기 넣으면 그중 하나라도 네트워크 실패 시 앱 전체(다른 모든 게임 포함)가 설치조차
+  // 안 된다. 대신 이 catch-all 핸들러에 맡겨 "퍼즐 게임을 한 번이라도 실행한 뒤부터"
+  // 오프라인이 되는 지연 캐싱을 택했다 — 이미 해시 번들(JS/CSS)도 이 방식이라 새로
+  // 예외를 만들지 않고 기존 패턴을 그대로 따른 것이기도 하다.
   e.respondWith(
     caches.match(req).then((hit) => {
       if (hit) return hit;

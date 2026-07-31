@@ -6,6 +6,7 @@
 
 1. 게임 하나 = 파일 하나. `src/games/<id>.js`. `id`는 파일명과 정확히 같아야 한다.
 2. 외부 라이브러리·이미지·오디오 파일 금지. 그림은 Canvas 2D 코드, 소리는 `api.audio`.
+   - **유일한 예외**: `public/puzzles/`는 직소 퍼즐 게임 전용으로 소유주가 명시적으로 승인한, 라이선스를 확인한 사진 자산이다(현재 10장 — `public/puzzles/manifest.json`과 `CREDITS.md` 참고. 전부 NASA/USGS/NOAA/USFWS 등 퍼블릭 도메인 또는 Wikimedia Commons CC0이며 출처·라이선스를 파일 단위로 확인해 기록했다). 이 예외는 **`public/puzzles/` 폴더 하나로 한정**되고, 그 사진을 읽어 쓰는 건 직소 퍼즐 게임의 몫이다. **다른 어떤 게임도 이미지·오디오 파일을 새로 추가하면 안 된다** — 규칙 2는 `public/puzzles/`를 제외한 모든 곳에 그대로 적용된다. 새 사진/오디오가 필요할 것 같으면 임의로 추가하지 말고 소유주에게 먼저 물어라.
 3. 색은 `src/core/draw.js`의 `PALETTE`만 쓴다.
 4. 화면은 항상 960 × 640. 좌표를 하드코딩해도 되지만 이 범위를 벗어나면 안 된다.
 5. `render(ctx)`는 **그리기만** 한다. 상태 변경, `onScore`, `onGameOver` 호출 금지.

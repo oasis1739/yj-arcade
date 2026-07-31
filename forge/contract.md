@@ -71,6 +71,30 @@ api.onGameOver({ score })    // 끝났을 때 한 번. 2인이면 { score, winne
 
 **Math.random을 쓰지 말고 `api.rng`를 써라.** 테스트 재현성이 깨진다.
 
+### 레벨/스테이지마다 재현 가능한 콘텐츠가 필요할 때
+
+`api.rng`는 세션 하나에 한 번만 시드되는 단일 스트림이고, 다시 시드할 방법이 없다. "스테이지 번호 = 시드"처럼 **특정 레벨을 몇 번을 다시 방문해도 매번 같은 결과가 나와야 하는** 절차 생성(미로, 퍼즐판 등)에는 이게 안 맞는다 — `api.rng`를 계속 뽑아 쓰면 세션 진행 순서에 따라 값이 달라져서, 같은 스테이지를 다시 불러도 다른 미로가 나온다.
+
+이럴 땐 `../core/rng.js`의 `makeRng(seed)`를 게임 파일에 **직접 import**해서, 레벨 하나를 만드는 순수 함수 안에서 그 레벨 전용 시드로 새 rng를 만들어라. `../core/*.js`는 정적 린트(`tests/forge.test.js`의 `ALLOWED_IMPORT`)가 이미 허용하는 import 범위이니 별도 조치가 필요 없다. 단, `api.rng`와는 별개의 스트림이므로 **섞어 쓰지 마라** — 레벨 콘텐츠 생성처럼 재현성이 필요한 곳엔 `makeRng(seed)`로 만든 전용 rng만, 그 외(연출 등 매번 달라도 무방한 것)에는 `api.rng`를 써라.
+
+실전 예시 (`src/games/maze-50.js`):
+
+```js
+import { makeRng } from '../core/rng.js';
+
+// 순수 named export — api 없이 stage 번호만으로 호출 가능하다(테스트에서
+// 직접 부를 수 있는 이유이기도 하다). 스테이지 번호 자체가 시드라서 언제
+// 불러도 같은 미로가 나온다.
+export function createStage(stage) {
+  const rng = makeRng(stage);
+  const maze = generateMaze(cfg.mazeW, cfg.mazeH, rng);
+  // ... 문/열쇠/순찰 배치도 같은 rng로 이어서 뽑는다
+  return { stage, maze, /* ... */ };
+}
+```
+
+`default.init(api)`/`handleCleared()`는 이 함수를 `this.stageNum`으로 불러 쓰기만 한다 — `api`나 `api.rng`는 레벨 생성에 전혀 관여하지 않는다.
+
 ### `api.onScore(n)`이 2인 게임에서 뜻하는 것
 
 셸의 "최고기록"(`src/shell/records.js`)은 **게임 id 하나당 숫자 하나**만 저장한다 — 플레이어별로 나뉘지 않는다. 그리고 `api.input.p1`은 항상 이 기기 앞에 앉은 로컬 플레이어(아빠든 유준이든, 그날 1P를 잡은 사람)다. 이 두 사실 때문에 2인 게임의 `onScore`는 규칙이 하나다:

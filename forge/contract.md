@@ -43,9 +43,9 @@ export default {
 
 `default export`는 얇은 래퍼로만 쓰고, 충돌·이동·점수·승패 판정 같은 순수 로직은 파일 상단에 **named export 함수**로 따로 뺀다. `default` 객체의 `update()`는 그 함수들을 불러 쓰고 `this.api`로 부수효과(사운드·파티클·onScore·onGameOver)만 처리한다. 이렇게 나눠야 `tests/games/<id>.test.js`가 `api`나 캔버스 없이 순수 함수만 직접 호출해서 테스트할 수 있다.
 
-예시 (`src/games/neon-snake.js`): `createSnakeState()`, `turn(s, dx, dy)`, `stepSnake(s, spawnFood)`가 named export고, `default.update(dt)`는 이 함수들을 호출한 뒤 결과(점수 증가·사망)에 따라 `this.api.audio`/`this.api.juice`/`this.api.onScore`/`this.api.onGameOver`를 부른다.
+예시 (`src/games/crossy-robot.js`): `makeLane()`, `createCrossyState()`, `advanceCars(state, dt)`, `laneHit(lane, col)`, `movePlayer(state, dcol, dlane, rng)`가 named export고, `default.update(dt)`는 이 함수들을 호출한 뒤 결과(충돌·전진)에 따라 `this.api.audio`/`this.api.juice`/`this.api.onScore`/`this.api.onGameOver`를 부른다. 연속시간으로 매 프레임 이동체(차)를 전진시키고 충돌을 검사하는 장르를 짤 때 이 파일을 본떠라.
 
-예시 (`src/games/crossy-robot.js`): `makeLane()`, `createCrossyState()`, `advanceCars(state, dt)`, `laneHit(lane, col)`, `movePlayer(state, dcol, dlane, rng)`가 named export다.
+예시 (`src/games/sudoku.js`): `createSudokuState()`, `selectCell(state, r, c)`, `placeValue(state, value)`, `checkWin(state)`, `useHint(state)`, `generatePuzzle(rng, ...)`가 named export다. 포인터로 셀을 고르고 값을 넣는 턴제 조작과, `api.rng`로 매판 다른 퍼즐을 생성하는 부분이 전부 순수 함수로 분리돼 있다. 반응 속도가 아니라 상태 전이(선택 → 입력 → 판정)로 진행되는 퍼즐/두뇌 장르나, 판마다 콘텐츠를 절차적으로 생성해야 하는 게임을 짤 때 이 파일을 본떠라.
 
 ## api
 
@@ -106,8 +106,8 @@ api.onGameOver({ score })    // 끝났을 때 한 번. 2인이면 { score, winne
 
 ## 모범 예시
 
-- `src/games/neon-snake.js` — 격자·턴제
-- `src/games/crossy-robot.js` — 연속시간·이동체 충돌
+- `src/games/crossy-robot.js` — 연속시간·이동체 충돌. 매 프레임 물체가 움직이고 반응 속도로 승부가 나는 장르(`action`, 반응/액션형 `sports` 등)를 짤 때 참고해라.
+- `src/games/sudoku.js` — 포인터·턴제·절차적 생성. 클릭/탭으로 상태를 전이시키고, 판마다 콘텐츠(퍼즐·문제)를 새로 생성해야 하는 장르(`puzzle`, `quiz`)를 짤 때 참고해라.
 
 ## 제출 전 반드시 통과해야 하는 것
 
@@ -133,6 +133,18 @@ npx vitest run tests/games/<id>.test.js     # 네가 쓴 규칙 단위 테스트
 - 시작 5초 안에 뭘 해야 하는지 조작만으로 알 수 있다 (설명 화면 금지)
 - 점수가 오를 때와 죽을 때(또는 라운드/판이 끝날 때) 소리·파티클·흔들림이 반드시 있다
 - **고정 난이도 금지.** 무엇을 "고정 난이도"로 보는지, 그리고 판 길이를 어떻게 재는지는 게임의 장르(`tags`)에 따라 다르다 — 아래 네 갈래 중 자기 게임에 해당하는 기준을 만족해야 한다. 두 갈래에 걸치면(예: `sports` + `versus`) 더 구체적인 쪽(2인 대전)을 따른다.
+
+### 가독성 (실제 플레이테스트에서 나온, 이 프로젝트가 배운 가장 중요한 교훈)
+
+실제로 유준이와 아빠가 5개를 플레이테스트했을 때 반려된 3개 중 2개는 "재미없다"가 아니라 **"뭔 게임인지 감이 안 온다"**였다. 재미보다 먼저 걸리는 관문이라 별도로 못박는다. 아래는 텍스트 설명 없이, 첫 화면과 첫 터치만으로 검사할 수 있는 구체적 기준이다:
+
+- **글 없이도 목표를 안다.** 첫 화면을 보여주고 아무 설명도 하지 않았을 때, 플레이어가 "뭘 하면 이기는지/뭘 피해야 하는지"를 화면에 보이는 것(캐릭터·색·모양·움직임)만으로 추측할 수 있어야 한다. 규칙을 글로 읽어야 이해되면 이미 반려감이다.
+- **입력의 의미가 한 번 만져보면 나온다.** 핵심 조작(탭 한 번, 스와이프 한 번, 방향 한 번)이 뭘 하는지 화면을 한 번 건드려보는 것만으로 드러나야 한다. 버튼에 라벨을 달아 설명하는 방식으로 때우면 안 된다 — 조작 자체의 시각적 피드백(움직임·강조·소리)이 설명을 대신해야 한다.
+- **이해에 선행 학습이 필요하면 이 패키지에 맞지 않는 형태다.** 자원 경제(골드를 모아 뭔가를 산다), 여러 종류의 유닛/포탑을 구분해서 배치, 공수 교대 같은 턴 페이즈 — 이런 개념을 먼저 "이해"해야 재미가 시작되는 구조는, 그 개념 학습 자체가 진입장벽이 되어 8세 플레이어에게는 "감이 안 오는" 상태로 남는다. 처음부터 다시 설계해라.
+- **반례(반려된 실제 사례, 비난이 아니라 패턴으로 기록):**
+  - `farm-defense`(농장 디펜스): 3레인 타워 디펜스 + 골드 경제. 포탑 3종의 차이, 골드 획득/소비, 레인 배치라는 세 개념을 동시에 이해해야 "지금 뭘 해야 유리한지"가 보였다 — 그 전까지는 화면이 그냥 바쁘게만 보인다.
+  - `baseball-battle`(야구 배틀왕): 투수/타자 두 역할 + 이닝제 공수교대. 자신이 지금 어느 역할인지, 그 역할에서 뭘 입력해야 하는지, 그리고 그게 언제 바뀌는지를 동시에 따라가야 해서 "지금 내가 뭘 하고 있는 건지" 감이 안 왔다.
+  - 둘 다 규칙 자체는 정상 작동했다(계약 테스트 통과) — 문제는 로직이 아니라 **한눈에 읽히는 형태(shape)**였다. 이 프로젝트가 원하는 건 "규칙이 복잡해도 잘 만든 게임"이 아니라 "보자마자 손이 가는 게임"이다.
 
 ### 1. 반응/액션 (`tags`에 `action` 또는 (`sports`이면서 `versus`가 아님))
 

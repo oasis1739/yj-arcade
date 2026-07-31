@@ -66,6 +66,11 @@ export function driveInput(api, frame, rng) {
   p1.aHeld = frame % 23 < 6;
   p1.b = frame % 41 === 0;
   p1.bHeld = frame % 41 < 4;
+  // stepX/stepY: 이산 스텝 신호. 실제 createInput처럼 매 프레임 나는 게
+  // 아니라 간간이 한 칸씩(가끔은 0으로 "안 움직임"도) 펄스로 흉내낸다 —
+  // x/y와는 다른 위상(9프레임 주기)을 써서 두 신호를 각각 구동한다.
+  p1.stepX = frame % 9 === 2 ? rng.int(3) - 1 : 0;
+  p1.stepY = frame % 9 === 6 ? rng.int(3) - 1 : 0;
 
   const p2 = api.input.p2;
   if (frame % 19 === 0) { p2.x = rng.int(3) - 1; p2.y = rng.int(3) - 1; }
@@ -73,6 +78,8 @@ export function driveInput(api, frame, rng) {
   p2.aHeld = frame % 31 < 9;
   p2.b = frame % 37 === 0;
   p2.bHeld = frame % 37 < 5;
+  p2.stepX = frame % 11 === 3 ? rng.int(3) - 1 : 0;
+  p2.stepY = frame % 11 === 8 ? rng.int(3) - 1 : 0;
 
   const ptr = api.input.pointer;
   if (frame % 13 === 0) { ptr.x = rng.int(960); ptr.y = rng.int(640); }

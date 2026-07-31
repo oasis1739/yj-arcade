@@ -51,7 +51,14 @@ export default {
 
 ```js
 api.w, api.h                 // 960, 640
-api.input.p1 / p2            // { x, y, a, aHeld, b, bHeld } — x/y는 -1..1, y는 아래가 +
+api.input.p1 / p2            // { x, y, a, aHeld, b, bHeld, stepX, stepY } — x/y는 -1..1, y는 아래가 +
+                              // stepX/stepY는 -1|0|1의 이산(discrete) 방향 신호. 방향을 새로
+                              // 누른 프레임에 한 번만 서고, 쥐고 있으면 키 반복처럼(초기 지연
+                              // ~0.35초, 이후 ~0.18초 간격) 반복된다. 매 프레임 나는 값이 아니다.
+                              // **규칙: 격자를 한 칸씩 움직이는 게임(길 건너기류)은 stepX/stepY를
+                              // 써라. 화면을 매끄럽게 계속 움직이는 게임(플랫폼 이동, 슈팅 등)은
+                              // 그대로 x/y(연속 아날로그)를 써라.** 둘 다 항상 채워지므로 장르에
+                              // 안 맞는 쪽을 실수로 읽어도 티가 안 날 수 있다 — 직접 골라야 한다.
 api.input.pointer            // { x, y, down, pressed, released } — 논리 좌표
 api.draw                     // clear, rect, roundRect, circle, line, text
 api.audio                    // beep(freq, ms, type), sweep(from, to, ms, type), noise(ms)

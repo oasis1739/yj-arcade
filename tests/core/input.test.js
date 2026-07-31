@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   emptyPad, KEYMAP_P1, KEYMAP_P2, padFromKeys, padFromGamepad,
   padLayout, padFromTouches, mergePads, createInput,
+  createAxisStepper, createPadStepper, STEP_THRESHOLD, STEP_REPEAT_DELAY, STEP_REPEAT_RATE,
 } from '../../src/core/input.js';
 
 // addEventListener/removeEventListener/dispatch만 있으면 되는 최소 가짜
@@ -23,7 +24,9 @@ function fakeTarget() {
 
 describe('emptyPad', () => {
   it('중립 상태다', () => {
-    expect(emptyPad()).toEqual({ x: 0, y: 0, a: false, aHeld: false, b: false, bHeld: false });
+    expect(emptyPad()).toEqual({
+      x: 0, y: 0, a: false, aHeld: false, b: false, bHeld: false, stepX: 0, stepY: 0,
+    });
   });
 });
 
@@ -135,6 +138,59 @@ describe('padFromTouches', () => {
     const res = padFromTouches([{ x: 480, y: 40 }], layout, noHeld);
     expect(res.p1).toEqual(emptyPad());
   });
+
+  it('쉬는 엄지 흉내(반지름의 30%)는 중립이다 — 예전 데드존(22%)은 넘지만 새 데드존은 안 넘는다', () => {
+    const { cx, cy, r } = layout.p1.dpad;
+    const res = padFromTouches([{ x: cx + r * 0.3, y: cy }], layout, noHeld);
+    expect(res.p1.x).toBe(0);
+    expect(res.p1.y).toBe(0);
+  });
+});
+
+describe('createAxisStepper — 이산 방향 스텝(키 반복 모델)', () => {
+  it('처음 누르면 즉시 1스텝, 지연 전까지는 더 안 난다', () => {
+    const s = createAxisStepper();
+    expect(s.step(1, 0)).toBe(1);
+    expect(s.step(1, 0.01)).toBe(0);
+    expect(s.step(1, STEP_REPEAT_DELAY - 0.02)).toBe(0);
+  });
+
+  it('문서화된 지연·간격대로 반복된다', () => {
+    const s = createAxisStepper();
+    expect(s.step(1, 0)).toBe(1);
+    expect(s.step(1, STEP_REPEAT_DELAY - 0.01)).toBe(0); // 지연 다 안 참
+    expect(s.step(1, 0.02)).toBe(1);                     // 지연 경과 → 첫 반복
+    expect(s.step(1, STEP_REPEAT_RATE - 0.01)).toBe(0);  // 다음 간격 안 참
+    expect(s.step(1, 0.02)).toBe(1);                     // 두번째 반복
+  });
+
+  it('중립을 거쳐 다시 누르면 지연 없이 즉시 스텝이다', () => {
+    const s = createAxisStepper();
+    expect(s.step(1, 0)).toBe(1);
+    expect(s.step(0, 0.01)).toBe(0);
+    expect(s.step(1, 0.01)).toBe(1);
+  });
+
+  it('방향을 바꾸면(반대쪽) 즉시 새 스텝이다', () => {
+    const s = createAxisStepper();
+    expect(s.step(1, 0)).toBe(1);
+    expect(s.step(-1, 0.01)).toBe(-1);
+  });
+
+  it('데드존(STEP_THRESHOLD) 미만 값은 중립이다', () => {
+    const s = createAxisStepper();
+    expect(s.step(STEP_THRESHOLD - 0.01, 0)).toBe(0);
+    expect(s.step(-(STEP_THRESHOLD - 0.01), 0)).toBe(0);
+  });
+});
+
+describe('createPadStepper', () => {
+  it('x/y를 각각 독립된 스텝으로 낸다', () => {
+    const s = createPadStepper();
+    const r = s.step({ x: 1, y: -1 }, 0);
+    expect(r.stepX).toBe(1);
+    expect(r.stepY).toBe(-1);
+  });
 });
 
 describe('createInput — 백그라운드 전환 시 터치 정리', () => {
@@ -195,6 +251,71 @@ describe('createInput — 백그라운드 전환 시 터치 정리', () => {
     input.update();
 
     expect(input.pointer.down).toBe(false);
+  });
+});
+
+describe('createInput — 이산 스텝 신호(키보드/터치 결선)', () => {
+  function setup() {
+    const win = fakeTarget();
+    const canvas = fakeTarget();
+    canvas.setPointerCapture = () => {};
+    const doc = fakeTarget();
+    doc.hidden = false;
+    const input = createInput({
+      canvas, win, doc,
+      toLogical: (x, y) => ({ x, y }),
+      nav: { getGamepads: () => [] },
+    });
+    return { win, canvas, doc, input };
+  }
+
+  it('키를 누르고 있으면 지연 전까지 한 번만 스텝이 난다', () => {
+    const { win, input } = setup();
+    win.dispatch('keydown', { code: 'KeyD', preventDefault() {} });
+    input.update(0);
+    expect(input.p1.stepX).toBe(1);
+    input.update(0.01);
+    expect(input.p1.stepX).toBe(0);
+  });
+
+  it('누르고 있으면 문서화된 속도로 반복된다', () => {
+    const { win, input } = setup();
+    win.dispatch('keydown', { code: 'KeyD', preventDefault() {} });
+    input.update(0);
+    expect(input.p1.stepX).toBe(1);
+    input.update(STEP_REPEAT_DELAY - 0.01);
+    expect(input.p1.stepX).toBe(0);
+    input.update(0.02);
+    expect(input.p1.stepX).toBe(1);
+    input.update(STEP_REPEAT_RATE - 0.01);
+    expect(input.p1.stepX).toBe(0);
+    input.update(0.02);
+    expect(input.p1.stepX).toBe(1);
+  });
+
+  it('떼었다 다시 누르면 즉시 스텝이 난다', () => {
+    const { win, input } = setup();
+    win.dispatch('keydown', { code: 'KeyD', preventDefault() {} });
+    input.update(0);
+    expect(input.p1.stepX).toBe(1);
+    win.dispatch('keyup', { code: 'KeyD' });
+    input.update(0.01);
+    expect(input.p1.stepX).toBe(0);
+    win.dispatch('keydown', { code: 'KeyD', preventDefault() {} });
+    input.update(0.01);
+    expect(input.p1.stepX).toBe(1);
+  });
+
+  it('데드존 안(쉬는 엄지) 터치는 스텝을 내지 않는다', () => {
+    const { canvas, input } = setup();
+    input.setControls('dpad');
+    const { cx, cy, r } = input.layout().p1.dpad;
+    canvas.dispatch('pointerdown', {
+      pointerId: 1, clientX: cx + r * 0.3, clientY: cy, preventDefault() {},
+    });
+    input.update(0);
+    expect(input.p1.stepX).toBe(0);
+    expect(input.p1.stepY).toBe(0);
   });
 });
 

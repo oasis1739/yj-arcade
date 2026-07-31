@@ -2,7 +2,14 @@
 // 축: x는 오른쪽이 +, y는 아래가 + (캔버스 좌표와 같은 방향).
 
 export function emptyPad() {
-  return { x: 0, y: 0, a: false, aHeld: false, b: false, bHeld: false };
+  return {
+    x: 0, y: 0, a: false, aHeld: false, b: false, bHeld: false,
+    // stepX/stepY: 이산(discrete) 방향 신호. 연속 x/y와 달리 "눌림"이 아니라
+    // "한 번의 의도된 입력"을 나타낸다 — 격자 위를 한 칸씩 움직이는 게임(길
+    // 건너기 로봇류)은 x/y가 아니라 이걸 써야 한다. 계속 이동하는 게임(플랫폼
+    // 이동, 슈팅 등)은 그대로 x/y를 쓴다. 값·타이밍은 createAxisStepper 참고.
+    stepX: 0, stepY: 0,
+  };
 }
 
 export const KEYMAP_P1 = {
@@ -87,6 +94,16 @@ export function padLayout(w, h, controls) {
   return none;
 }
 
+// 방향패드 데드존. 논리 반지름의 이 비율 안쪽은 전부 중립으로 본다.
+//
+// iPhone 가로모드 실측(논리 960×640 → 844×390 CSS, scale 0.609, dpad
+// 반지름 R=78 논리px) 기준: 예전 값 0.22 → 17.2 논리px → 기기 10.5pt. 엄지
+// 접촉면은 보통 23~34pt(반지름 11.5~17pt)라서, 그냥 얹어 쉬기만 해도
+// 데드존을 넘어 "눌림"으로 읽혔다. 0.42 → 32.76 논리px → 기기 약 20.0pt로
+// 올려, 엄지 접촉 반지름(최대 17pt)을 여유 있게 넘도록 한다. 그러면서도
+// 등록 반경(r*1.35=105.3 논리px)까지는 여전히 넉넉히 남아 패드가 쓸만하다.
+const TOUCH_DEADZONE_FRACTION = 0.42;
+
 function zonePad(points, zone, prevA) {
   const pad = emptyPad();
   if (!zone) return pad;
@@ -96,7 +113,7 @@ function zonePad(points, zone, prevA) {
       const dy = p.y - zone.dpad.cy;
       const mag = Math.hypot(dx, dy);
       if (mag <= zone.dpad.r * 1.35) {
-        if (mag > zone.dpad.r * 0.22) {
+        if (mag > zone.dpad.r * TOUCH_DEADZONE_FRACTION) {
           const k = zone.dpad.r * 0.7;
           pad.x = Math.max(-1, Math.min(1, dx / k));
           pad.y = Math.max(-1, Math.min(1, dy / k));
@@ -124,12 +141,64 @@ export function mergePads(...pads) {
     if (!p) continue;
     if (Math.abs(p.x) > Math.abs(out.x)) out.x = p.x;
     if (Math.abs(p.y) > Math.abs(out.y)) out.y = p.y;
+    if (Math.abs(p.stepX) > Math.abs(out.stepX)) out.stepX = p.stepX;
+    if (Math.abs(p.stepY) > Math.abs(out.stepY)) out.stepY = p.stepY;
     out.a ||= p.a;
     out.aHeld ||= p.aHeld;
     out.b ||= p.b;
     out.bHeld ||= p.bHeld;
   }
   return out;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 이산 방향 스텝. 격자 위를 한 칸씩 움직이는 게임(길 건너기류)을 위한 신호.
+// 연속 아날로그 x/y를 "누른 순간 1스텝, 그 다음은 키보드 키 반복처럼" 로
+// 바꾼다 — 쥐고 있다고 매 프레임 전진하지 않는다.
+//
+// 값은 OS/브라우저의 표준 키 반복 감각을 그대로 본떴다(초기 지연 ~0.35초,
+// 이후 반복 ~0.18초 ≈ 초당 5.5회 — 사람이 의도적으로 누르는 속도다. 옛
+// MOVE_COOLDOWN=0.13초·연속 판정 방식은 초당 7.7회로 반응이 아니라 실수로도
+// 여러 칸이 밀렸다).
+export const STEP_THRESHOLD = 0.4;      // 이 값을 넘는 축을 "눌림"으로 본다(연속 이동 임계값과 동일)
+export const STEP_REPEAT_DELAY = 0.35;  // 첫 스텝 이후 반복이 시작되기까지(초)
+export const STEP_REPEAT_RATE = 0.18;   // 이후 반복 간격(초)
+
+// 축 하나(x 또는 y)를 위한 상태기계. 키보드/게임패드/터치 어느 쪽이 흘려주는
+// 값이든 이미 -1..1 아날로그로 정규화돼 있으므로 소스를 구분하지 않는다.
+export function createAxisStepper() {
+  let dir = 0;
+  let timer = 0;
+  return {
+    step(value, dt) {
+      const next = Math.abs(value) > STEP_THRESHOLD ? Math.sign(value) : 0;
+      if (next !== dir) {
+        // 새 방향(혹은 중립)으로 막 바뀐 프레임 — 지연 없이 즉시 발화하고,
+        // 계속 눌려 있으면 이제부터 지연을 잰다.
+        dir = next;
+        timer = STEP_REPEAT_DELAY;
+        return dir;
+      }
+      if (dir === 0) return 0;
+      timer -= dt;
+      if (timer <= 0) {
+        timer = STEP_REPEAT_RATE;
+        return dir;
+      }
+      return 0;
+    },
+  };
+}
+
+// 패드 하나(x,y)를 위한 스테퍼 — 두 축을 독립적으로 추적한다.
+export function createPadStepper() {
+  const x = createAxisStepper();
+  const y = createAxisStepper();
+  return {
+    step(pad, dt) {
+      return { stepX: x.step(pad.x, dt), stepY: y.step(pad.y, dt) };
+    },
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -146,6 +215,8 @@ export function createInput({ canvas, toLogical, win = globalThis, nav = globalT
   const touches = new Map(); // pointerId → {x, y}
   const p1 = emptyPad();
   const p2 = emptyPad();
+  const p1Stepper = createPadStepper();
+  const p2Stepper = createPadStepper();
   const pointer = { x: 0, y: 0, down: false, pressed: false, released: false };
   let pointerDownEdge = false;
   let pointerUpEdge = false;
@@ -221,8 +292,9 @@ export function createInput({ canvas, toLogical, win = globalThis, nav = globalT
 
     layout() { return layout; },
 
-    // 매 프레임 게임 update 전에 한 번 호출한다.
-    update() {
+    // 매 프레임 게임 update 전에 한 번 호출한다. dt는 초(고정 1/60) —
+    // 이산 스텝의 반복 지연·간격을 재는 데 쓴다.
+    update(dt = 1 / 60) {
       const pts = [...touches.values()];
       const t = padFromTouches(pts, layout, touchHeld);
       touchHeld = t.held;
@@ -231,6 +303,11 @@ export function createInput({ canvas, toLogical, win = globalThis, nav = globalT
       Object.assign(p1, mergePads(padFromKeys(down, prevKeys, KEYMAP_P1), g0, t.p1));
       Object.assign(p2, mergePads(padFromKeys(down, prevKeys, KEYMAP_P2), g1, t.p2));
       prevKeys = new Set(down);
+
+      // 합쳐진(키보드+게임패드+터치) 아날로그 x/y에서 이산 스텝을 뽑는다 —
+      // 소스별이 아니라 합쳐진 값 하나로 재야 세 입력이 똑같이 동작한다.
+      Object.assign(p1, p1Stepper.step(p1, dt));
+      Object.assign(p2, p2Stepper.step(p2, dt));
 
       pointer.down = touches.size > 0;
       pointer.pressed = pointerDownEdge;

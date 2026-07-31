@@ -90,7 +90,7 @@ function handleTap() {
 const loop = createLoop({
   dt: 1 / 60,
   update: (dt) => {
-    core.input.update();
+    core.input.update(dt);
     handleTap();
     if (mode === 'game') session.update(dt);
     else core.juice.update(dt);

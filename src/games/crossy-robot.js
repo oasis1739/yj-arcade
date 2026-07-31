@@ -91,7 +91,6 @@ const CELL = 56;                          // 15*56 = 840
 const OX = (960 - COLS * CELL) / 2;
 const LANE_H = 52;
 const BOTTOM = 640 - 24;
-const MOVE_COOLDOWN = 0.13;
 
 export default {
   id: 'crossy-robot',
@@ -118,7 +117,6 @@ export default {
   init(api) {
     this.api = api;
     this.s = createCrossyState({ cols: COLS, lanes: LANES, rng: api.rng });
-    this.cool = 0;
     this.over = false;
   },
 
@@ -127,23 +125,22 @@ export default {
     const s = this.s;
     advanceCars(s, dt);
 
-    this.cool = Math.max(0, this.cool - dt);
+    // 격자를 한 칸씩 건너는 게임이라 연속 아날로그(x/y)가 아니라 이산
+    // 스텝(stepX/stepY)을 쓴다 — 한 번의 의도된 입력 = 한 칸. stepY 우선(위/
+    // 아래가 진행 방향)은 기존 동작 그대로 유지.
     const p = this.api.input.p1;
-    if (this.cool === 0) {
-      let dc = 0;
-      let dl = 0;
-      if (p.y < -0.4) dl = 1;
-      else if (p.y > 0.4) dl = -1;
-      else if (p.x > 0.4) dc = 1;
-      else if (p.x < -0.4) dc = -1;
+    let dc = 0;
+    let dl = 0;
+    if (p.stepY < 0) dl = 1;
+    else if (p.stepY > 0) dl = -1;
+    else if (p.stepX > 0) dc = 1;
+    else if (p.stepX < 0) dc = -1;
 
-      if (dc !== 0 || dl !== 0) {
-        const r = movePlayer(s, dc, dl, this.api.rng);
-        if (r.moved) {
-          this.cool = MOVE_COOLDOWN;
-          this.api.audio.beep(dl > 0 ? 620 : 420, 40);
-          if (r.scored) this.api.onScore(s.crossed);
-        }
+    if (dc !== 0 || dl !== 0) {
+      const r = movePlayer(s, dc, dl, this.api.rng);
+      if (r.moved) {
+        this.api.audio.beep(dl > 0 ? 620 : 420, 40);
+        if (r.scored) this.api.onScore(s.crossed);
       }
     }
 

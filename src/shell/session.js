@@ -34,6 +34,11 @@ export function createSession({ core, records, onExit }) {
   let score = 0;
   let result = null;
   let lastError = null;
+  // maze-50처럼 onGameOver 없이 스테이지를 계속 깨며 진행하는 게임은
+  // onScore(n)만 부르고 그냥 플레이를 멈춘다 — 그 진행 상황을 메뉴 기록에
+  // 반영하려면 셸이 "이 세션에서 onScore가 한 번이라도 왔는가"를 직접
+  // 추적해야 한다(exitToMenu/stop에서 참고).
+  let hasProgress = false;
   // 지금 이 세션의 api 객체. 참조를 들고 있어야 일시정지 화면의 "혼자/2인"
   // 토글이 이미 게임에 넘어간 api.solo를 나중에 다시 뒤집을 수 있다.
   let api = null;
@@ -59,7 +64,7 @@ export function createSession({ core, records, onExit }) {
       // 사람일 것"은 오탐이 흔하다) — 매번 혼자라고 가정하고 시작해서,
       // 로컬 플레이어가 일시정지 화면의 토글로 명시적으로 뒤집게 한다.
       solo: true,
-      onScore(n) { if (Number.isFinite(n)) score = n; },
+      onScore(n) { if (Number.isFinite(n)) { score = n; hasProgress = true; } },
       onGameOver(res = {}) {
         if (state === 'over') return;
         state = 'over';
@@ -76,6 +81,7 @@ export function createSession({ core, records, onExit }) {
     score = 0;
     result = null;
     lastError = null;
+    hasProgress = false;
     state = 'playing';
     core.juice.reset();
     core.input.setControls?.(g.controls ?? 'pointer');
@@ -83,9 +89,24 @@ export function createSession({ core, records, onExit }) {
     g.init(api);
   }
 
+  // onGameOver 없이 중간에 멈춘 세션의 진행 상황을 기록으로 남긴다.
+  // - onGameOver가 이미 기록했다면(state === 'over') 또 남기지 않는다.
+  // - onScore가 한 번도 안 왔으면(hasProgress === false) 남길 게 없다.
+  // - scoreOrder가 'low'인 게임(예: 스도쿠의 경과 시간)은 건너뛴다 — "작을수록
+  //   좋음" 게임에서 끝내지 않은 중간값(예: 시작하자마자 나간 3초)은 실제로
+  //   잘한 게 아니라 그냥 안 끝낸 것뿐인데, 그걸 기록하면 "3초 만에 클리어"
+  //   같은 거짓 신기록이 뜬다. 반면 'high'는 중간에 그만둬도 "거기까지는
+  //   도달했다"는 게 정직한 사실이라 기록해도 안전하다.
+  function recordProgressOnExit() {
+    if (!game || state === 'over' || !hasProgress) return;
+    if (game.scoreOrder === 'low') return;
+    records.recordProgress(game.id, score, game.scoreOrder);
+  }
+
   // 일시정지/오버 화면의 "메뉴로" 버튼과 정확히 같은 종료 경로. 게임이 터졌을
   // 때도 셸 상태가 갈라지지 않도록 이걸 재사용한다.
   function exitToMenu() {
+    recordProgressOnExit();
     if (game) {
       try { game.dispose(); } catch { /* 게임이 이미 망가졌어도 dispose 실패는 무시 */ }
     }
@@ -110,6 +131,7 @@ export function createSession({ core, records, onExit }) {
     },
 
     stop() {
+      recordProgressOnExit();
       if (game) game.dispose();
       game = null;
       api = null;

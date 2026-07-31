@@ -332,6 +332,96 @@ describe('createSession', () => {
   });
 });
 
+describe('createSession — onGameOver 없이 나가도 진행 상황을 기록한다 (maze-50류 게임)', () => {
+  it('onScore로 진행 상황을 알리고 메뉴로 나가면 최고기록에 반영되지만 플레이 횟수는 늘지 않는다', () => {
+    const { session, records } = mkSession(stubCtx());
+    const g = fakeGame({ update() { this.api.onScore(7); } });
+    session.start(g);
+    session.update(1 / 60);
+
+    const B = sessionButtons(960, 640);
+    session.tap(B.pause.x + 5, B.pause.y + 5);
+    expect(session.tap(B.menu.x + 5, B.menu.y + 5)).toBe('menu');
+
+    expect(records.best('test-game')).toBe(7);
+    expect(records.plays('test-game')).toBe(0);
+    expect(session.state()).toBe('idle');
+  });
+
+  it('onScore를 한 번도 안 부르고 나가면 아무것도 기록되지 않는다', () => {
+    const { session, records } = mkSession(stubCtx());
+    const g = fakeGame(); // 기본 update()는 onScore를 부르지 않는다
+    session.start(g);
+    session.update(1 / 60);
+
+    const B = sessionButtons(960, 640);
+    session.tap(B.pause.x + 5, B.pause.y + 5);
+    session.tap(B.menu.x + 5, B.menu.y + 5);
+
+    expect(records.best('test-game')).toBe(null);
+    expect(records.plays('test-game')).toBe(0);
+  });
+
+  it('onGameOver로 정상 종료된 뒤 메뉴로 나가도 두 번 기록되지 않는다', () => {
+    const { session, records } = mkSession(stubCtx());
+    const g = fakeGame({
+      update() {
+        if (!this.done) {
+          this.done = true;
+          this.api.onGameOver({ score: 77 });
+        }
+      },
+    });
+    session.start(g);
+    session.update(1 / 60);
+    expect(session.state()).toBe('over');
+    expect(records.plays('test-game')).toBe(1);
+    expect(records.best('test-game')).toBe(77);
+
+    const B = sessionButtons(960, 640);
+    expect(session.tap(B.menu.x + 5, B.menu.y + 5)).toBe('menu');
+
+    expect(records.plays('test-game')).toBe(1);
+    expect(records.best('test-game')).toBe(77);
+  });
+
+  it('scoreOrder가 low인 게임(예: 스도쿠의 경과 시간)은 onGameOver 없이 나가면 기록하지 않는다', () => {
+    // 시간은 작을수록 좋은데, 끝내지 않고 3초 만에 나간 걸 "3초 기록"으로
+    // 남기면 거짓 신기록이 된다 — low 게임은 onGameOver로 다 풀었을 때만
+    // 진짜 기록이다.
+    const { session, records } = mkSession(stubCtx());
+    const g = fakeGame({ scoreOrder: 'low', update() { this.api.onScore(3); } });
+    session.start(g);
+    session.update(1 / 60);
+
+    const B = sessionButtons(960, 640);
+    session.tap(B.pause.x + 5, B.pause.y + 5);
+    session.tap(B.menu.x + 5, B.menu.y + 5);
+
+    expect(records.best('test-game')).toBe(null);
+    expect(records.plays('test-game')).toBe(0);
+  });
+
+  it('진행 상황이 있어도 게임이 크래시하면(메뉴로 강제 이동) 그때까지의 진행은 기록된다', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const ctx = stubCtx();
+    const { session, records } = mkSession(ctx, () => {});
+    const g = fakeGame({
+      update() {
+        this.api.onScore(5);
+        throw new Error('boom');
+      },
+    });
+    session.start(g);
+    expect(() => session.update(1 / 60)).not.toThrow();
+
+    expect(session.state()).toBe('idle');
+    expect(records.best('test-game')).toBe(5);
+    expect(records.plays('test-game')).toBe(0);
+    vi.restoreAllMocks();
+  });
+});
+
 describe('createSession — 터치 오버레이', () => {
   it('pointer 컨트롤은 오버레이를 그리지 않는다', () => {
     const ctx = stubCtx();

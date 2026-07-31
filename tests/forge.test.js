@@ -45,11 +45,12 @@ describe('forge/catalog.json', () => {
     expect(both).toEqual([]);
   });
 
-  it('유준이가 직접 요청한 그림퍼즐·미로찾기·그림기억·앵그리버드2인이 큐에 있다', () => {
+  it('유준이가 직접 요청한 그림퍼즐·그림기억·앵그리버드2인이 큐에 있다 (미로찾기는 구현돼 큐에서 빠졌다)', () => {
     const ids = catalog.queue.map((e) => e.id);
-    for (const id of ['picture-puzzle', 'maze-50', 'memory-sequence', 'fort-duel']) {
+    for (const id of ['picture-puzzle', 'memory-sequence', 'fort-duel']) {
       expect(ids).toContain(id);
     }
+    expect(ids).not.toContain('maze-50');
   });
 
   it('출시 후 플레이테스트에서 반려된 농장 디펜스·야구 배틀왕은 큐에 없다 (구현은 archived:true로 남고, 큐는 새 작업만 담는다)', () => {
